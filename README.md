@@ -1,57 +1,49 @@
-# Meal Planner — AI Builders 2026
+# Meal Planner V2 — AI Builders 2026
 
-This repository is the **AI Builders 2026 competition variant** of Meal Planner.
+Meal Planner V2 is a local-first meal-planning application that can be operated through the normal human interface or by a WebMCP-capable AI agent.
 
-Baseline: copied from `noob-express3000/meal_planner` on **2026-09-08**. The original repository remains separate. All competition work after that copy is made in `noob-express3000/the-watchlist`.
+This repository is the **AI Builders 2026 competition version**. It was created from the earlier `noob-express3000/meal_planner` project on **2026-09-08**. The original repository remains separate; competition-specific development continues here in `noob-express3000/meal_planner-V2`.
 
-Despite the repository name, the product in this repository is **Meal Planner**.
+## What it does
 
-## Product
+The website owns persistence, validation, state mutation and deterministic calculations. The agent handles reasoning, research, selection and multi-step orchestration.
 
-Meal Planner is a local-first planning environment that can be operated by either a human or a WebMCP-capable AI agent.
+There is no hosted model, account system, application API key or server database required for the core application.
 
-The website owns structured state, validation, persistence and deterministic calculations. The agent handles reasoning, selection, research and multi-step orchestration.
+The interface has six views:
 
-No account, hosted database, embedded model or application API key is required.
+- **Plan** — breakfast, lunch and dinner slots by date
+- **Recipes** — structured servings, ingredients, cooking times and instructions
+- **Pantry** — ingredients already available
+- **Shopping** — requirements calculated from the plan after recipe scaling and pantry subtraction
+- **Sources** — videos, articles and references retained by the human or agent
+- **Profile** — reusable household constraints, budget, equipment and goals
 
-## Interface
+## Agent workflow
 
-Six primary views:
+Example objective:
 
-- **Plan** — dated breakfast, lunch and dinner slots
-- **Recipes** — structured servings, ingredients, cooking time and instructions
-- **Pantry** — quantities already available
-- **Shopping** — calculated requirements after recipe scaling and pantry subtraction
-- **Sources** — videos, articles and references saved by the human or agent
-- **Profile** — persistent planning constraints and goals
+> We are two people with R800 for groceries this week. Keep dinners high-protein, under 30 minutes and peanut-free. Use what is already in the pantry. Add any missing recipes, retain useful sources, plan the week and build the shopping list.
 
-The AI Builders variant uses a new application shell with fixed navigation on desktop and compact navigation on smaller screens. The interface is designed so the human-facing controls and agent-facing tools operate the same underlying state.
+A WebMCP-capable agent can:
 
-## Planning profile
+1. Read the planning profile and current meal context.
+2. Preserve newly stated constraints.
+3. Inspect recipes, prior plans and pantry inventory.
+4. Select or research meals that satisfy those constraints.
+5. Save missing recipes.
+6. Save supporting videos or articles as Sources.
+7. Write the meal plan.
+8. Calculate the resulting shopping list.
+9. Optionally research package prices and promotions for a user-supplied shopping region.
 
-The Profile view stores reusable constraints instead of requiring the user to repeat them for every planning session:
-
-- household size
-- dietary restrictions
-- allergies
-- disliked foods
-- weekly budget and currency
-- available cooking equipment
-- maximum cooking time
-- planning goals such as high-protein, low-cost or meal prep
-
-Profile state is browser-local and exposed to agents through two tools:
-
-- `get_preferences`
-- `set_preferences`
-
-`set_preferences` performs partial updates. An agent can therefore remember a newly stated allergy or equipment constraint without replacing unrelated preferences.
+Every mutation is immediately visible in the same interface used by the human.
 
 ## Sources and provenance
 
-Sources are a first-class part of the product rather than transient links in a chat response.
+Sources are persistent application state rather than transient links in a chat response.
 
-Supported video URLs can play directly inside the Sources view:
+Supported video sources can play directly in the Sources view:
 
 - YouTube
 - Vimeo
@@ -59,28 +51,28 @@ Supported video URLs can play directly inside the Sources view:
 
 Other sources remain normal external links.
 
-A source can optionally reference a saved recipe. This gives the user lightweight provenance: when an agent researches or creates a recipe, it can leave behind the article, video or reference it used.
+A source can optionally reference a saved recipe. This lets an agent leave behind the material used when researching or constructing a recipe.
 
-WebMCP tools:
+## Planning profile
 
-- `list_sources`
-- `save_source`
-- `delete_source`
+Profile state is stored locally and contains:
 
-## Local state
+- household size
+- dietary restrictions
+- allergies
+- disliked foods
+- weekly budget and currency
+- cooking equipment
+- maximum cooking time
+- planning goals
 
-State is persisted in browser `localStorage` and belongs to the current site origin/browser profile.
+`set_preferences` performs partial updates, so adding one constraint does not replace unrelated profile state.
 
-- `meal-planner.webmcp.v1` — recipes, meal plans and pantry
-- `meal-planner.shopping-pricing.v1` — optional shopping profile and saved price quotes
-- `meal-planner.sources.v1` — videos, articles, references and recipe provenance
-- `meal-planner.preferences.v1` — household constraints, budget, equipment and goals
+## WebMCP
 
-The product remains usable when WebMCP is unavailable.
+The page registers structured tools directly with `document.modelContext.registerTool()`. There is no separate MCP server.
 
-## WebMCP surface
-
-The application exposes structured browser tools through `document.modelContext.registerTool()`.
+The current surface contains **25 tools**.
 
 ### Context and profile
 
@@ -88,7 +80,7 @@ The application exposes structured browser tools through `document.modelContext.
 - `get_preferences`
 - `set_preferences`
 
-### Planning and recipes
+### Recipes and planning
 
 - `list_recipes`
 - `get_recipe`
@@ -122,27 +114,7 @@ The application exposes structured browser tools through `document.modelContext.
 - `save_source`
 - `delete_source`
 
-The WebMCP indicator reports the tools actually discoverable through the browser rather than using a hard-coded count.
-
-## Example agent workflow
-
-Objective:
-
-> I have R800 for groceries this week. We are two people. Keep dinners high-protein, under 30 minutes, and avoid peanuts. Use what is already in my pantry. Add any recipes I need, keep the useful sources you relied on, plan the week, then build my shopping list.
-
-A capable agent can:
-
-1. Read `get_preferences` and the existing meal context.
-2. Save newly stated constraints with `set_preferences`.
-3. Inspect recipes, prior meal history and pantry inventory.
-4. Select or research meals that satisfy the profile.
-5. Save missing recipes.
-6. Save useful supporting videos/articles in Sources.
-7. Write the approved weekly plan.
-8. Calculate the shopping list after pantry subtraction.
-9. Optionally research local package prices and promotions.
-
-Every mutation is immediately visible in the same interface the human uses.
+The status indicator reports the tools actually discoverable by the browser instead of displaying a hard-coded count.
 
 ## Architecture
 
@@ -158,22 +130,28 @@ AI agent ─── WebMCP ───────┤
              deterministic calculations
 ```
 
-There is no separate MCP server. WebMCP tool registration and execution happen directly in the page.
+The application remains usable when WebMCP is unavailable. WebMCP exposes machine-operable access to the same state and functions rather than introducing a second application backend.
 
-## Why this structure
+## Local state
 
-The project deliberately minimizes moving parts:
+State belongs to the current browser profile and site origin.
 
-- one static web application
-- browser-local persistence
-- no authentication layer
-- no server database
-- no hosted inference dependency
-- no duplicate agent backend
-- deterministic meal and shopping calculations
-- optional machine operation through WebMCP
+- `meal-planner.webmcp.v1` — recipes, meal plans and pantry
+- `meal-planner.shopping-pricing.v1` — optional shopping region, preferred stores and saved price quotes
+- `meal-planner.sources.v1` — videos, articles, references and recipe provenance
+- `meal-planner.preferences.v1` — household constraints, budget, equipment and goals
 
-The AI is useful because it can operate the planning environment, not because the website wraps a chat completion endpoint.
+Shopping location is optional and explicitly supplied by the user. The application does not request device geolocation. It remains available to pricing tools but is not echoed into status/error messages.
+
+## Quick evaluation
+
+1. Serve the application over HTTPS or run it locally.
+2. Open it in a browser environment with WebMCP/Site Tools support.
+3. Confirm the WebMCP indicator reports the available tools.
+4. Save a Profile with a few constraints.
+5. Add or import recipes and pantry items.
+6. Ask an agent to plan meals using the saved constraints and pantry.
+7. Verify the resulting Plan, Shopping list and Sources directly in the UI.
 
 ## Run locally
 
@@ -187,26 +165,29 @@ Open `http://localhost:8080/`.
 
 ## Deployment
 
-The project is a static site. Serve the repository root over HTTPS.
+Meal Planner V2 is a static site. Serve the repository root over HTTPS.
 
-Deployment configuration is included for Render and Netlify.
+Configuration is included for:
+
+- Render (`render.yaml`)
+- Netlify (`netlify.toml`)
 
 ## Main files
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Application structure and navigation |
-| `styles.css` | Original component styling |
-| `shell.css` | AI Builders application-shell redesign and Profile styling |
-| `app.js` | Meal state, calculations, UI and core WebMCP tools |
-| `preferences.js` | Persistent planning profile and preference WebMCP tools |
-| `sources.js` | Source library, video embedding and source WebMCP tools |
-| `sources.css` | Source-specific styling |
-| `shopping-pricing.js` | Price quotes and package-aware basket estimates |
+| `index.html` | Application structure, views and script loading |
+| `styles.css` | Base component styling |
+| `shell.css` | AI Builders application shell and Profile styling |
+| `app.js` | Core meal state, calculations, UI and WebMCP tools |
+| `preferences.js` | Planning profile state and WebMCP tools |
+| `sources.js` | Sources library, video embedding and WebMCP tools |
+| `sources.css` | Sources styling |
+| `shopping-pricing.js` | Package-aware price quotes and basket estimates |
 | `shopping-localization.js` | Agent-resolved shopping currency |
-| `import-data.js` | Validated core meal-state import |
+| `import-data.js` | Validated core-state import |
 | `recipe-view.js` | Read-only recipe view |
-| `webmcp-status.js` | Live WebMCP tool discovery status |
+| `webmcp-status.js` | Tool discovery status and visible location redaction |
 
 ## License
 
