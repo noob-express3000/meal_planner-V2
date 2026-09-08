@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Plan meals, save recipes and build shopping lists with WebMCP." />
+  <meta name="description" content="Plan meals, save recipes, keep sources and build shopping lists with WebMCP." />
   <meta name="theme-color" content="#09090b" />
   <title>Meal Planner</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./recipe-view.css" />
+  <link rel="stylesheet" href="./sources.css" />
 </head>
 <body>
   <div class="app-layout">
@@ -18,23 +19,14 @@
       </a>
 
       <nav class="tabs" aria-label="Meal planner sections">
-        <button class="tab active" data-tab="planner" type="button">
-          <span>Weekly plan</span>
-        </button>
-        <button class="tab" data-tab="recipes" type="button">
-          <span>Recipes</span>
-        </button>
-        <button class="tab" data-tab="pantry" type="button">
-          <span>Pantry</span>
-        </button>
-        <button class="tab" data-tab="shopping" type="button">
-          <span>Shopping</span>
-        </button>
+        <button class="tab active" data-tab="planner" type="button"><span>Weekly plan</span></button>
+        <button class="tab" data-tab="recipes" type="button"><span>Recipes</span></button>
+        <button class="tab" data-tab="pantry" type="button"><span>Pantry</span></button>
+        <button class="tab" data-tab="shopping" type="button"><span>Shopping</span></button>
+        <button class="tab" data-tab="sources" type="button"><span>Sources</span></button>
       </nav>
       <div class="topbar-actions">
-        <span id="mcpStatus" class="mcp-pill" title="WebMCP connection status">
-          <span>Checking WebMCP…</span>
-        </span>
+        <span id="mcpStatus" class="mcp-pill" title="WebMCP connection status"><span>Checking WebMCP…</span></span>
         <button class="button ghost agent-prompt" type="button" data-copy-agent-prompt aria-label="Copy agent prompt">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v12H5zM8 10l2 2-2 2M12 14h4"/></svg>
           <span>Agent prompt</span>
@@ -47,21 +39,14 @@
     </header>
 
     <section class="workspace">
-
       <main>
         <section id="planner" class="panel active" data-panel="planner">
           <div class="section-head">
-            <div>
-              <h2 id="weekTitle">Meal plan</h2>
-            </div>
+            <div><h2 id="weekTitle">Meal plan</h2></div>
             <div class="week-controls">
-              <button id="previousWeek" class="icon-button" type="button" aria-label="Previous week">
-                <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
+              <button id="previousWeek" class="icon-button" type="button" aria-label="Previous week"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
               <button id="todayWeek" class="button ghost" type="button">Today</button>
-              <button id="nextWeek" class="icon-button" type="button" aria-label="Next week">
-                <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
+              <button id="nextWeek" class="icon-button" type="button" aria-label="Next week"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
             </div>
           </div>
           <div id="plannerGrid" class="planner-grid"></div>
@@ -69,23 +54,14 @@
 
         <section id="recipes" class="panel" data-panel="recipes">
           <div class="section-head">
-            <div>
-              <h2>Your recipes</h2>
-            </div>
-            <button id="addRecipeButton" class="button primary" type="button">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-              Add recipe
-            </button>
+            <div><h2>Your recipes</h2></div>
+            <button id="addRecipeButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add recipe</button>
           </div>
           <div id="recipeList" class="recipe-grid"></div>
         </section>
 
         <section id="pantry" class="panel" data-panel="pantry">
-          <div class="section-head">
-            <div>
-              <h2>Your pantry</h2>
-            </div>
-          </div>
+          <div class="section-head"><div><h2>Your pantry</h2></div></div>
           <form id="pantryForm" class="inline-form">
             <label class="sr-only" for="pantryName">Ingredient</label>
             <input id="pantryName" name="name" placeholder="Ingredient" required />
@@ -93,25 +69,25 @@
             <input id="pantryQuantity" name="quantity" type="number" min="0" step="any" placeholder="Qty" required />
             <label class="sr-only" for="pantryUnit">Unit</label>
             <input id="pantryUnit" name="unit" placeholder="Unit" />
-            <button class="button primary" type="submit">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-              Add item
-            </button>
+            <button class="button primary" type="submit"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add item</button>
           </form>
           <div id="pantryList" class="simple-list"></div>
         </section>
 
         <section id="shopping" class="panel" data-panel="shopping">
           <div class="section-head">
-            <div>
-              <h2>Shopping list</h2>
-            </div>
-            <button id="copyShoppingButton" class="button primary" type="button">
-              <svg viewBox="0 0 24 24"><path d="M8 8h11v12H8zM5 16H4V4h11v1"/></svg>
-              Copy list
-            </button>
+            <div><h2>Shopping list</h2></div>
+            <button id="copyShoppingButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M8 8h11v12H8zM5 16H4V4h11v1"/></svg>Copy list</button>
           </div>
           <div id="shoppingList" class="simple-list"></div>
+        </section>
+
+        <section id="sources" class="panel" data-panel="sources">
+          <div class="section-head">
+            <div><h2>Sources</h2></div>
+            <button id="addSourceButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add source</button>
+          </div>
+          <div id="sourceList" class="source-grid"></div>
         </section>
       </main>
     </section>
@@ -120,9 +96,7 @@
   <dialog id="recipeDialog">
     <form id="recipeForm" method="dialog" class="dialog-form">
       <div class="dialog-head">
-        <div>
-          <h2 id="recipeDialogTitle">Add recipe</h2>
-        </div>
+        <div><h2 id="recipeDialogTitle">Add recipe</h2></div>
         <button class="icon-button" value="cancel" type="button" data-close-dialog aria-label="Close">×</button>
       </div>
       <input id="recipeId" type="hidden" />
@@ -136,9 +110,7 @@
       <label>Ingredients <span class="label-note">one per line: quantity | unit | ingredient</span>
         <textarea id="recipeIngredients" rows="7" placeholder="2 | tbsp | olive oil&#10;400 | g | chickpeas&#10;1 | | lemon" required></textarea>
       </label>
-      <label>Instructions <span class="label-note">one step per line</span>
-        <textarea id="recipeInstructions" rows="6" required></textarea>
-      </label>
+      <label>Instructions <span class="label-note">one step per line</span><textarea id="recipeInstructions" rows="6" required></textarea></label>
       <div class="dialog-actions">
         <button class="button ghost" type="button" data-close-dialog>Cancel</button>
         <button class="button primary" type="submit">Save recipe</button>
@@ -149,9 +121,7 @@
   <dialog id="mealDialog">
     <form id="mealForm" method="dialog" class="dialog-form compact">
       <div class="dialog-head">
-        <div>
-          <h2 id="mealDialogTitle">Dinner</h2>
-        </div>
+        <div><h2 id="mealDialogTitle">Dinner</h2></div>
         <button class="icon-button" value="cancel" type="button" data-close-dialog aria-label="Close">×</button>
       </div>
       <input id="mealDate" type="hidden" />
@@ -165,11 +135,33 @@
     </form>
   </dialog>
 
+  <dialog id="sourceDialog">
+    <form id="sourceForm" method="dialog" class="dialog-form compact">
+      <div class="dialog-head">
+        <div><h2>Add source</h2></div>
+        <button class="icon-button" value="cancel" type="button" data-close-source-dialog aria-label="Close">×</button>
+      </div>
+      <input id="sourceId" type="hidden" />
+      <label>Title<input id="sourceTitle" required /></label>
+      <label>URL<input id="sourceUrl" type="url" placeholder="https://…" required /></label>
+      <div class="form-grid two">
+        <label>Type<select id="sourceType"><option value="article">Article</option><option value="video">Video</option><option value="reference">Reference</option></select></label>
+        <label>Recipe<select id="sourceRecipe"><option value="">Not linked to a recipe</option></select></label>
+      </div>
+      <label>Note<textarea id="sourceNote" rows="4" placeholder="Why this source matters"></textarea></label>
+      <div class="dialog-actions">
+        <button class="button ghost" type="button" data-close-source-dialog>Cancel</button>
+        <button class="button primary" type="submit">Save source</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="./webmcp-status.js"></script>
   <script src="./app.js" defer></script>
   <script src="./recipe-view.js" defer></script>
   <script src="./shopping-pricing.js" defer></script>
   <script src="./import-data.js" defer></script>
+  <script src="./sources.js" defer></script>
 </body>
 </html>
