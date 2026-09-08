@@ -1,12 +1,6 @@
 services:
   - type: web
-    name: the-watchlist
-    plan: free
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /healthz
-    autoDeployTrigger: commit
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.11
+    runtime: static
+    name: meal-planner
+    buildCommand: echo "No build step required"
+    staticPublishPath: .
