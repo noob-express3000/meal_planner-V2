@@ -23,7 +23,7 @@ fi
 COMMAND="${VENV_DIR}/bin/uvicorn --app-dir ${REPO_DIR} --uds \${DOMAIN_SOCKET} app:app"
 
 if pa website get --domain "${DOMAIN}" >/dev/null 2>&1; then
-  pa website update --domain "${DOMAIN}" --command "${COMMAND}"
+  pa website reload --domain "${DOMAIN}"
 else
   pa website create --domain "${DOMAIN}" --command "${COMMAND}"
 fi
