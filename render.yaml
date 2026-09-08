@@ -1,6 +1,6 @@
 services:
   - type: web
     runtime: static
-    name: meal-planner
+    name: meal-planner-v2
     buildCommand: echo "No build step required"
     staticPublishPath: .
