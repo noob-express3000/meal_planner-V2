@@ -60,3 +60,15 @@ jobs:
 
           grep -q '^# Meal Planner V2' README.md
           ! grep -q 'the-watchlist' README.md
+
+      - name: Guard against location-specific examples
+        shell: bash
+        run: |
+          private_country="South"" Africa"
+          private_city="Johannes""burg"
+          private_currency="Z""AR"
+          private_budget="R""800"
+          ! grep -R -n -F "$private_country" --exclude-dir=.git .
+          ! grep -R -n -F "$private_city" --exclude-dir=.git .
+          ! grep -R -n -F "$private_currency" --exclude-dir=.git .
+          ! grep -R -n -F "$private_budget" --exclude-dir=.git .
