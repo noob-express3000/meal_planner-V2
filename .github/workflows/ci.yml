@@ -13,23 +13,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Check JavaScript syntax
         run: |
           node --check app.js
+          node --check recipe-view.js
+          node --check shopping-pricing.js
+          node --check shopping-localization.js
+          node --check import-data.js
           node --check sources.js
           node --check preferences.js
-      - name: Verify WebMCP integration and submission files
+          node --check webmcp-status.js
+
+      - name: Verify submission surface
         shell: bash
         run: |
           test -f index.html
           test -f styles.css
           test -f shell.css
-          test -f app.js
-          test -f sources.js
+          test -f recipe-view.css
           test -f sources.css
+          test -f app.js
+          test -f recipe-view.js
+          test -f shopping-pricing.js
+          test -f shopping-localization.js
+          test -f import-data.js
+          test -f sources.js
           test -f preferences.js
+          test -f webmcp-status.js
           test -f README.md
           test -f LICENSE
+
           grep -q 'document.modelContext.registerTool' app.js
           grep -q 'meal_context' app.js
           grep -q 'build_shopping_list' app.js
@@ -37,4 +51,12 @@ jobs:
           grep -q 'list_sources' sources.js
           grep -q 'get_preferences' preferences.js
           grep -q 'set_preferences' preferences.js
+          grep -q 'set_shopping_currency' shopping-localization.js
+
           grep -q 'data-tab="preferences"' index.html
+          grep -q 'shopping-localization.js' index.html
+          grep -q 'sources.js' index.html
+          grep -q 'preferences.js' index.html
+
+          grep -q '^# Meal Planner V2' README.md
+          ! grep -q 'the-watchlist' README.md
