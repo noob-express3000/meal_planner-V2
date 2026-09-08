@@ -29,49 +29,35 @@ a { font: inherit; }
 button { cursor: pointer; }
 
 .shell {
+  position: relative;
   width: min(1080px, calc(100% - 40px));
   height: 100vh;
   margin: 0 auto;
-  padding: 28px 0 22px;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-
-.topbar,
-.tabs,
-.actions {
+  padding: 18px 0 22px;
   display: flex;
-  align-items: center;
-}
-
-.topbar {
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 66px;
-  padding-bottom: 18px;
-}
-
-.brand {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .18em;
+  flex-direction: column;
 }
 
 .goal {
-  margin-top: 7px;
+  margin: 0 44px 10px 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
 }
 
+.goal[hidden] { display: none; }
+
 .agent-status {
+  position: absolute;
+  top: 10px;
+  right: 0;
   width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
   color: #454542;
-  flex: 0 0 auto;
   transition: color 140ms ease;
+  z-index: 2;
 }
 
 .webmcp-icon {
@@ -92,9 +78,7 @@ button { cursor: pointer; }
   stroke-linecap: round;
 }
 
-.agent-status.connected {
-  color: var(--text);
-}
+.agent-status.connected { color: var(--text); }
 
 .sr-only {
   position: absolute;
@@ -108,9 +92,17 @@ button { cursor: pointer; }
   border: 0;
 }
 
+.tabs,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
 .tabs {
   gap: 28px;
+  padding-right: 44px;
   border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
 }
 
 .tab {
@@ -118,20 +110,18 @@ button { cursor: pointer; }
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 13px 0 12px;
+  padding: 9px 0 10px;
   font-size: 13px;
 }
 
 .tab:hover,
-.tab.active {
-  color: var(--text);
-}
+.tab.active { color: var(--text); }
 
 .tab.active::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 12%;
+  right: 12%;
   bottom: -1px;
   height: 1px;
   background: var(--text);
@@ -146,6 +136,7 @@ button { cursor: pointer; }
 
 .workspace {
   min-height: 0;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -160,20 +151,12 @@ button { cursor: pointer; }
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 28px 0 40px;
+  padding: 24px 0 40px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
 
-.empty {
-  height: 100%;
-  min-height: 220px;
-  display: grid;
-  place-items: center;
-  color: #3c3c39;
-  font-size: 20px;
-  user-select: none;
-}
+.empty { display: none; }
 
 .hero {
   display: grid;
@@ -203,9 +186,7 @@ button { cursor: pointer; }
   aspect-ratio: 2 / 3;
 }
 
-.hero-copy {
-  max-width: 620px;
-}
+.hero-copy { max-width: 620px; }
 
 .meta {
   margin-bottom: 8px;
@@ -268,18 +249,14 @@ p { margin: 0; }
   gap: 28px 18px;
 }
 
-.media-card {
-  min-width: 0;
-}
+.media-card { min-width: 0; }
 
 .card-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
 }
 
-.card-copy {
-  padding-top: 10px;
-}
+.card-copy { padding-top: 10px; }
 
 .card-copy .meta {
   margin-bottom: 5px;
@@ -321,8 +298,17 @@ p { margin: 0; }
     width: min(100% - 28px, 1080px);
     min-height: 100vh;
     height: auto;
-    padding: 20px 0 18px;
-    grid-template-rows: auto auto auto;
+    padding: 14px 0 18px;
+  }
+
+  .agent-status {
+    top: 6px;
+    right: 0;
+  }
+
+  .tabs {
+    gap: 20px;
+    padding-right: 38px;
   }
 
   .workspace,
@@ -332,7 +318,10 @@ p { margin: 0; }
     overflow: visible;
   }
 
-  .panel-content { min-height: 58vh; }
+  .panel-content {
+    min-height: 58vh;
+    padding-top: 18px;
+  }
 
   .hero {
     min-height: 0;
@@ -342,9 +331,7 @@ p { margin: 0; }
     padding-top: 4px;
   }
 
-  .hero .title {
-    font-size: clamp(28px, 8vw, 46px);
-  }
+  .hero .title { font-size: clamp(28px, 8vw, 46px); }
 
   .reason {
     margin-top: 12px;
@@ -359,17 +346,13 @@ p { margin: 0; }
 
 @media (max-width: 440px) {
   .tabs {
-    gap: 20px;
+    gap: 16px;
     overflow-x: auto;
   }
 
   .tab { white-space: nowrap; }
 
-  .hero {
-    grid-template-columns: 1fr;
-  }
+  .hero { grid-template-columns: 1fr; }
 
-  .hero-poster {
-    width: min(58vw, 220px);
-  }
+  .hero-poster { width: min(58vw, 220px); }
 }
