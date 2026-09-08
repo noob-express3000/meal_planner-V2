@@ -3,56 +3,62 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="theme-color" content="#090909">
   <title>The Watchlist</title>
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div>
-        <div class="eyebrow">THE WATCHLIST</div>
-        <h1 id="goal">Loading…</h1>
+      <div class="brand">THE WATCHLIST</div>
+      <div class="status-line">
+        <span id="agent-status">WebMCP unavailable</span>
+        <button id="refresh" class="icon-button" type="button" aria-label="Refresh watchlist">↻</button>
       </div>
-      <button id="refresh" class="quiet" type="button">Refresh</button>
     </header>
 
-    <section class="up-next" aria-labelledby="up-next-heading">
-      <div class="section-head">
-        <h2 id="up-next-heading">Up next</h2>
-        <span id="queue-count"></span>
-      </div>
-      <div id="up-next"></div>
+    <section class="goal-block" aria-label="Active goal">
+      <span class="goal-label">CURRENT GOAL</span>
+      <h1 id="goal">Loading…</h1>
     </section>
 
-    <section aria-labelledby="watchlist-heading">
-      <div class="section-head">
-        <h2 id="watchlist-heading">Watchlist</h2>
-      </div>
-      <div id="watchlist" class="stack"></div>
-    </section>
+    <nav class="tabs" role="tablist" aria-label="Watchlist views">
+      <button class="tab active" id="tab-up-next" role="tab" aria-selected="true" aria-controls="panel-up-next" data-tab="up-next" type="button">
+        Up Next
+      </button>
+      <button class="tab" id="tab-watchlist" role="tab" aria-selected="false" aria-controls="panel-watchlist" data-tab="watchlist" type="button">
+        Watchlist <span id="queue-count" class="count"></span>
+      </button>
+      <button class="tab" id="tab-history" role="tab" aria-selected="false" aria-controls="panel-history" data-tab="history" type="button">
+        History <span id="history-count" class="count"></span>
+      </button>
+    </nav>
 
-    <section aria-labelledby="history-heading">
-      <div class="section-head">
-        <h2 id="history-heading">History</h2>
-      </div>
-      <div id="history" class="stack"></div>
-    </section>
+    <div class="workspace">
+      <section class="tab-panel active" id="panel-up-next" role="tabpanel" aria-labelledby="tab-up-next" data-panel="up-next">
+        <div id="up-next" class="panel-content"></div>
+      </section>
 
-    <footer>
-      <span id="agent-status">WebMCP unavailable in this browser</span>
-    </footer>
+      <section class="tab-panel" id="panel-watchlist" role="tabpanel" aria-labelledby="tab-watchlist" data-panel="watchlist" hidden>
+        <div id="watchlist" class="panel-content stack"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" data-panel="history" hidden>
+        <div id="history" class="panel-content stack"></div>
+      </section>
+    </div>
   </main>
 
   <template id="media-template">
     <article class="media-row">
-      <div class="rank"></div>
+      <div class="poster" aria-hidden="true"></div>
       <div class="media-copy">
         <div class="meta"></div>
-        <h3 class="title"></h3>
+        <h2 class="title"></h2>
         <p class="reason"></p>
         <div class="actions"></div>
       </div>
+      <div class="rank"></div>
     </article>
   </template>
 
