@@ -2,6 +2,7 @@ const state = { data: null };
 const toolControllers = [];
 
 const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -27,6 +28,50 @@ function action(label, onClick, primary = false) {
   button.textContent = label;
   button.addEventListener("click", onClick);
   return button;
+}
+
+function setTab(name, { focus = false } = {}) {
+  const tabs = $$("[data-tab]");
+  const panels = $$("[data-panel]");
+
+  tabs.forEach((tab) => {
+    const selected = tab.dataset.tab === name;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    if (selected && focus) tab.focus();
+  });
+
+  panels.forEach((panel) => {
+    const selected = panel.dataset.panel === name;
+    panel.classList.toggle("active", selected);
+    panel.hidden = !selected;
+  });
+
+  sessionStorage.setItem("watchlist.activeTab", name);
+}
+
+function initTabs() {
+  const tabs = $$("[data-tab]");
+  const allowed = new Set(tabs.map((tab) => tab.dataset.tab));
+  const stored = sessionStorage.getItem("watchlist.activeTab");
+  setTab(allowed.has(stored) ? stored : "up-next");
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => setTab(tab.dataset.tab));
+    tab.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+
+      let targetIndex = index;
+      if (event.key === "ArrowRight") targetIndex = (index + 1) % tabs.length;
+      if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === "Home") targetIndex = 0;
+      if (event.key === "End") targetIndex = tabs.length - 1;
+
+      setTab(tabs[targetIndex].dataset.tab, { focus: true });
+    });
+  });
 }
 
 async function interact(id, event) {
@@ -63,7 +108,7 @@ function mediaRow(item, index, { upNext = false, history = false } = {}) {
     }
   } else {
     if (item.status === "recommended") {
-      actions.append(action(upNext ? "Start" : "Start", () => interact(item.id, "started"), upNext));
+      actions.append(action("Start", () => interact(item.id, "started"), upNext));
     }
     if (item.status === "started") {
       actions.append(action("Complete", () => interact(item.id, "completed"), true));
@@ -77,30 +122,32 @@ function mediaRow(item, index, { upNext = false, history = false } = {}) {
   return row;
 }
 
+function emptyState(text) {
+  const empty = document.createElement("div");
+  empty.className = "empty";
+  empty.textContent = text;
+  return empty;
+}
+
 function render(data) {
   state.data = data;
   $("#goal").textContent = data.goal?.goal || "No active goal";
-  $("#queue-count").textContent = `${data.watchlist.length} queued`;
+  $("#queue-count").textContent = data.watchlist.length ? String(data.watchlist.length) : "";
+  $("#history-count").textContent = data.history.length ? String(data.history.length) : "";
 
   const upNext = $("#up-next");
   upNext.replaceChildren();
   if (data.up_next) {
     upNext.append(mediaRow(data.up_next, 0, { upNext: true }));
   } else {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "Queue is clear.";
-    upNext.append(empty);
+    upNext.append(emptyState("Nothing queued."));
   }
 
   const watchlist = $("#watchlist");
   watchlist.replaceChildren();
   const remaining = data.watchlist.slice(data.up_next ? 1 : 0);
   if (!remaining.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "No additional recommendations.";
-    watchlist.append(empty);
+    watchlist.append(emptyState("No additional media."));
   } else {
     remaining.forEach((item, index) => watchlist.append(mediaRow(item, index + 1)));
   }
@@ -108,10 +155,7 @@ function render(data) {
   const history = $("#history");
   history.replaceChildren();
   if (!data.history.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty";
-    empty.textContent = "Nothing here yet.";
-    history.append(empty);
+    history.append(emptyState("No history."));
   } else {
     data.history.forEach((item, index) => history.append(mediaRow(item, index, { history: true })));
   }
@@ -310,13 +354,14 @@ async function registerWebMCPTools() {
 
   try {
     for (const tool of tools) await register(tool);
-    status.textContent = `WebMCP · ${tools.length} tools exposed`;
+    status.textContent = `WebMCP · ${tools.length} tools`;
   } catch (error) {
     console.error("WebMCP registration failed", error);
-    status.textContent = "WebMCP registration failed";
+    status.textContent = "WebMCP unavailable";
   }
 }
 
+initTabs();
 $("#refresh").addEventListener("click", refresh);
 window.addEventListener("watchlist:refresh", refresh);
 window.addEventListener("pagehide", () => toolControllers.forEach((controller) => controller.abort()));
