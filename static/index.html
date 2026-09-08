@@ -9,18 +9,17 @@
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
-      <div id="goal" class="goal" hidden></div>
-      <span id="agent-status" class="agent-status" style="margin-left:auto" aria-live="polite" title="WebMCP unavailable">
-        <svg class="webmcp-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="6" cy="12" r="2.25"></circle>
-          <circle cx="18" cy="6" r="2.25"></circle>
-          <circle cx="18" cy="18" r="2.25"></circle>
-          <path d="M8 11.2 15.8 7M8 12.8l7.8 4.2"></path>
-        </svg>
-        <span class="sr-only">WebMCP status</span>
-      </span>
-    </header>
+    <span id="agent-status" class="agent-status" aria-live="polite" title="WebMCP unavailable">
+      <svg class="webmcp-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6" cy="12" r="2.25"></circle>
+        <circle cx="18" cy="6" r="2.25"></circle>
+        <circle cx="18" cy="18" r="2.25"></circle>
+        <path d="M8 11.2 15.8 7M8 12.8l7.8 4.2"></path>
+      </svg>
+      <span class="sr-only">WebMCP status</span>
+    </span>
+
+    <div id="goal" class="goal" hidden></div>
 
     <nav class="tabs" role="tablist" aria-label="Watchlist views">
       <button class="tab active" id="tab-up-next" role="tab" aria-selected="true" aria-controls="panel-up-next" data-tab="up-next" type="button">Up next</button>
