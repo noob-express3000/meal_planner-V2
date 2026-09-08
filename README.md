@@ -1,162 +1,94 @@
 # The Watchlist
 
-A minimal media-state service for an agent that maintains a human's watch environment around a physical-world goal.
+A minimal human-agent media surface.
 
-## Scope
+The server does not own the watchlist. It only serves the interface.
 
-The repository owns:
+## Model
 
-- active goal/context;
-- ordered recommendations;
-- recommendation reasons and relevance;
+```text
+Human ─┐
+       ├── browser surface ── IndexedDB
+Agent ─┘          │
+                  └── WebMCP tools
+```
+
+A fresh browser starts empty.
+
+There is no seeded goal, recommendation list, history, prediction model, or demo content. The human or connected agent creates the state.
+
+## Local state
+
+IndexedDB stores:
+
+- current goal and context;
+- ordered media queue;
+- media metadata;
+- thumbnails supplied by an agent;
+- thumbnail alt text;
 - started/completed/skipped/abandoned state;
-- watch-event history;
-- basic behavioral aggregates;
-- a human-facing queue/history interface;
-- deterministic HTTP operations;
-- WebMCP browser tools;
-- a thin Strands Agents SDK adapter.
+- interaction events.
 
-It does not attempt to be a streaming platform, social product, fitness coach, generic chatbot, or the complete Physical Transformation Bot.
+Render receives none of that state during normal use.
 
-## Architecture
+## Interface
+
+The human surface contains three tabs:
 
 ```text
-Human browser
-    |
-    | HTTP
-    v
-FastAPI + SQLite
-    |
-    +-- deterministic state transitions
-    +-- behavioral event log
-    +-- recommendation ordering
-    |
-    +--> WebMCP tools registered by static/app.js
-    |
-    +--> Strands tools in strands_adapter.py
+Up next
+Watchlist
+History
 ```
 
-The API remains the source of truth. WebMCP and Strands reuse the same operations rather than duplicating state logic.
+The active goal appears only when one exists. Empty state is intentionally blank.
 
-## Data model
-
-`goal_state`
-
-- one active goal;
-- optional context;
-- updated timestamp.
-
-`recommendations`
-
-- title;
-- media type;
-- provider/URL when known;
-- category;
-- associated goal;
-- selection reason;
-- relevance score;
-- queue priority;
-- status: `recommended`, `started`, `completed`, `skipped`, `abandoned`;
-- created/updated/started/completed timestamps.
-
-`watch_events`
-
-- recommendation id;
-- interaction type;
-- optional structured metadata;
-- timestamp.
-
-This preserves the state needed to observe sequences such as:
-
-```text
-recommended -> started -> completed
-recommended -> skipped
-started -> abandoned
-```
-
-The `/api/state` response also exposes a deliberately simple `predicted_next_watch_id`: the current highest-priority queued item. This creates a stable comparison point for a later prediction engine without pretending that a heuristic is ML.
-
-## API
-
-Core endpoints:
-
-```text
-GET    /api/state
-GET    /api/goal
-PUT    /api/goal
-GET    /api/recommendations
-POST   /api/recommendations
-PATCH  /api/recommendations/{id}
-DELETE /api/recommendations/{id}
-POST   /api/recommendations/reorder
-POST   /api/recommendations/{id}/interaction
-GET    /api/history
-GET    /api/behavior
-GET    /healthz
-```
-
-`GET /api/recommendations` accepts optional `status`, `category`, and `goal` query parameters.
+Media thumbnails have visual weight only when the agent supplies them. The surface does not invent titles, artwork, descriptions, goals, categories, or reasons.
 
 ## WebMCP
 
-`static/app.js` registers browser-native tools against the current `document.modelContext` API, with a fallback to the deprecated `navigator.modelContext` alias for transitional Chromium builds.
-
-Exposed tools:
+The browser exposes the same local state to an agent through WebMCP:
 
 ```text
 watchlist_get_state
-watchlist_query_media
 watchlist_set_goal
-watchlist_add_recommendation
-watchlist_update_recommendation
-watchlist_remove_recommendation
+watchlist_add_media
+watchlist_update_media
+watchlist_remove_media
 watchlist_reorder
 watchlist_record_interaction
+watchlist_clear_surface
 ```
 
-The page remains fully usable when WebMCP is unavailable.
-
-## Strands Agents SDK
-
-The Strands layer is intentionally thin. Deterministic CRUD and state transitions stay in FastAPI.
-
-Install optional agent dependencies:
-
-```bash
-pip install -r requirements-agent.txt
-```
-
-`strands_adapter.py` exports:
-
-```python
-WATCHLIST_TOOLS
-```
-
-These tools can be passed into a separately configured Strands `Agent` using whichever model provider the final hackathon agent uses. The Watchlist does not initialize a default Bedrock-backed agent or require AWS credentials merely to run the web application.
-
-Example integration shape:
-
-```python
-from strands import Agent
-from strands_adapter import WATCHLIST_TOOLS
-
-agent = Agent(
-    model=your_configured_model,
-    tools=WATCHLIST_TOOLS,
-    system_prompt="Maintain the user's media environment around their stated goal.",
-)
-```
-
-Set `WATCHLIST_BASE_URL` when the agent runs outside the same machine/container:
+`watchlist_add_media` accepts only a title as mandatory input. Everything else is optional and agent-supplied:
 
 ```text
-WATCHLIST_BASE_URL=https://your-watchlist-host.example
+media_type
+provider
+url
+category
+purpose
+reason
+thumbnail
+alt_text
+position
+status
 ```
 
-## Local run
+`thumbnail` may be a normal image URL or a data URL. `alt_text` exists so an agent can make agent-supplied artwork accessible to screen readers as part of the same operation.
 
-Python 3.12 is the deployment target.
+## Server
+
+FastAPI is deliberately stateless:
+
+```text
+GET /          interface
+GET /healthz   health check
+```
+
+No media CRUD API exists. State manipulation happens in the browser through IndexedDB and WebMCP.
+
+## Local run
 
 ```bash
 python -m venv .venv
@@ -176,39 +108,19 @@ Open:
 http://127.0.0.1:8000
 ```
 
-SQLite is created automatically at `data/watchlist.db` and seeded with a small runner-oriented demonstration queue.
-
-To place the database elsewhere:
-
-```text
-DATA_DIR=/path/to/data
-```
-
 ## Test
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q
+python -m pytest -q
 node --check static/app.js
 ```
 
-The integration tests prove:
-
-```text
-goal exists
--> recommendation added
--> recommendation appears in queue
--> interaction is recorded
--> completion/skip changes state
--> history updates
--> behavior state is available to an agent
-```
-
-GitHub Actions runs the same checks on push and pull request.
+CI verifies that the server remains stateless and that demo content is not serialized into the shipped interface.
 
 ## Render
 
-The root `render.yaml` is a Render Blueprint for the FastAPI service.
+`render.yaml` explicitly uses Render's free web-service plan.
 
 ```text
 build: pip install -r requirements.txt
@@ -216,16 +128,4 @@ start: uvicorn app:app --host 0.0.0.0 --port $PORT
 health: /healthz
 ```
 
-No credentials are hardcoded in the Blueprint.
-
-The current demo uses local SQLite. Render instances have an ephemeral filesystem unless persistent storage is configured, so redeploys can reset local state. That is acceptable for the initial hackathon demo; durable production state should use a persistent disk or external database without changing the API contract.
-
-## Demo flow
-
-1. Open the site and inspect the active goal.
-2. An agent calls `watchlist_get_state`.
-3. The agent adds or reprioritizes a recommendation.
-4. The recommendation appears in the human UI.
-5. The human starts, completes, skips, or abandons it.
-6. The state moves into history and an event is retained.
-7. A later agent call sees the changed behavioral state and can adapt the next recommendation.
+Because persistent application state is browser-local, Render's ephemeral filesystem is irrelevant to the Watchlist state model.
