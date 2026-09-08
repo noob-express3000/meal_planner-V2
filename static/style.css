@@ -6,6 +6,8 @@
   --line-strong: #343434;
   --text: #f1f1ed;
   --muted: #74746f;
+  --status-off: #ff3b30;
+  --status-on: #34c759;
 }
 
 * { box-sizing: border-box; }
@@ -55,36 +57,20 @@ button { cursor: pointer; }
 
 .agent-status {
   position: absolute;
-  top: 8px;
-  right: 0;
+  top: 14px;
+  right: 6px;
   z-index: 4;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  color: #454542;
-  transition: color 140ms ease;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--status-off);
+  box-shadow: 0 0 0 1px rgba(255, 59, 48, .14);
 }
 
-.webmcp-icon {
-  width: 19px;
-  height: 19px;
-  overflow: visible;
+.agent-status.connected {
+  background: var(--status-on);
+  box-shadow: 0 0 0 1px rgba(52, 199, 89, .14);
 }
-
-.webmcp-icon circle {
-  fill: currentColor;
-  stroke: none;
-}
-
-.webmcp-icon path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-
-.agent-status.connected { color: var(--text); }
 
 .sr-only {
   position: absolute;
@@ -319,8 +305,8 @@ p { margin: 0; }
   }
 
   .agent-status {
-    top: 4px;
-    right: -2px;
+    top: 12px;
+    right: 4px;
   }
 
   .workspace {
