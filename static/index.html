@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0b0b">
+  <title>The Watchlist</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">THE WATCHLIST</div>
+        <h1 id="goal">Loading…</h1>
+      </div>
+      <button id="refresh" class="quiet" type="button">Refresh</button>
+    </header>
+
+    <section class="up-next" aria-labelledby="up-next-heading">
+      <div class="section-head">
+        <h2 id="up-next-heading">Up next</h2>
+        <span id="queue-count"></span>
+      </div>
+      <div id="up-next"></div>
+    </section>
+
+    <section aria-labelledby="watchlist-heading">
+      <div class="section-head">
+        <h2 id="watchlist-heading">Watchlist</h2>
+      </div>
+      <div id="watchlist" class="stack"></div>
+    </section>
+
+    <section aria-labelledby="history-heading">
+      <div class="section-head">
+        <h2 id="history-heading">History</h2>
+      </div>
+      <div id="history" class="stack"></div>
+    </section>
+
+    <footer>
+      <span id="agent-status">WebMCP unavailable in this browser</span>
+    </footer>
+  </main>
+
+  <template id="media-template">
+    <article class="media-row">
+      <div class="rank"></div>
+      <div class="media-copy">
+        <div class="meta"></div>
+        <h3 class="title"></h3>
+        <p class="reason"></p>
+        <div class="actions"></div>
+      </div>
+    </article>
+  </template>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
