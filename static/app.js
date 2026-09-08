@@ -1,168 +1,427 @@
-const state = { data: null };
+const DB_NAME = "the-watchlist";
+const DB_VERSION = 1;
 const toolControllers = [];
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("settings")) {
+        db.createObjectStore("settings", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("media")) {
+        db.createObjectStore("media", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("events")) {
+        const events = db.createObjectStore("events", { keyPath: "id", autoIncrement: true });
+        events.createIndex("media_id", "media_id", { unique: false });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json();
-      detail = body.detail ? JSON.stringify(body.detail) : JSON.stringify(body);
-    } catch (_) {}
-    throw new Error(detail);
-  }
-  if (response.status === 204) return null;
-  return response.json();
 }
 
-function action(label, onClick, primary = false) {
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function transactionDone(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Transaction aborted"));
+  });
+}
+
+async function getSetting(key) {
+  const db = await openDatabase();
+  const tx = db.transaction("settings", "readonly");
+  const value = await requestResult(tx.objectStore("settings").get(key));
+  db.close();
+  return value?.value ?? null;
+}
+
+async function putSetting(key, value) {
+  const db = await openDatabase();
+  const tx = db.transaction("settings", "readwrite");
+  tx.objectStore("settings").put({ key, value });
+  await transactionDone(tx);
+  db.close();
+}
+
+async function getAllMedia() {
+  const db = await openDatabase();
+  const tx = db.transaction("media", "readonly");
+  const rows = await requestResult(tx.objectStore("media").getAll());
+  db.close();
+  return rows.sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at));
+}
+
+async function getMedia(id) {
+  const db = await openDatabase();
+  const tx = db.transaction("media", "readonly");
+  const row = await requestResult(tx.objectStore("media").get(id));
+  db.close();
+  return row || null;
+}
+
+async function putMedia(row) {
+  const db = await openDatabase();
+  const tx = db.transaction("media", "readwrite");
+  tx.objectStore("media").put(row);
+  await transactionDone(tx);
+  db.close();
+  return row;
+}
+
+async function removeMedia(id) {
+  const db = await openDatabase();
+  const tx = db.transaction(["media", "events"], "readwrite");
+  tx.objectStore("media").delete(id);
+  const eventStore = tx.objectStore("events");
+  const index = eventStore.index("media_id");
+  const request = index.openCursor(IDBKeyRange.only(id));
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    cursor.delete();
+    cursor.continue();
+  };
+  await transactionDone(tx);
+  db.close();
+}
+
+async function appendEvent(mediaId, event, metadata = {}) {
+  const db = await openDatabase();
+  const tx = db.transaction("events", "readwrite");
+  tx.objectStore("events").add({
+    media_id: mediaId,
+    event,
+    metadata,
+    created_at: new Date().toISOString(),
+  });
+  await transactionDone(tx);
+  db.close();
+}
+
+async function getAllEvents() {
+  const db = await openDatabase();
+  const tx = db.transaction("events", "readonly");
+  const rows = await requestResult(tx.objectStore("events").getAll());
+  db.close();
+  return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+async function clearSurface() {
+  const db = await openDatabase();
+  const tx = db.transaction(["settings", "media", "events"], "readwrite");
+  tx.objectStore("settings").clear();
+  tx.objectStore("media").clear();
+  tx.objectStore("events").clear();
+  await transactionDone(tx);
+  db.close();
+}
+
+function queueItems(media) {
+  return media.filter((item) => item.status === "queued" || item.status === "started");
+}
+
+function historyItems(media) {
+  return media
+    .filter((item) => ["completed", "skipped", "abandoned"].includes(item.status))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+}
+
+async function getState() {
+  const [goal, media, events] = await Promise.all([
+    getSetting("goal"),
+    getAllMedia(),
+    getAllEvents(),
+  ]);
+  const queue = queueItems(media);
+  return {
+    goal,
+    up_next: queue[0] || null,
+    watchlist: queue,
+    history: historyItems(media),
+    events,
+  };
+}
+
+function makeId() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function addMedia(input) {
+  const media = await getAllMedia();
+  const now = new Date().toISOString();
+  const row = {
+    id: input.id || makeId(),
+    title: input.title,
+    media_type: input.media_type || "",
+    provider: input.provider || "",
+    url: input.url || "",
+    category: input.category || "",
+    purpose: input.purpose || "",
+    reason: input.reason || "",
+    thumbnail: input.thumbnail || "",
+    alt_text: input.alt_text || "",
+    status: input.status || "queued",
+    position: Number.isInteger(input.position) ? input.position : media.length,
+    created_at: now,
+    updated_at: now,
+    started_at: null,
+    completed_at: null,
+  };
+  return putMedia(row);
+}
+
+async function updateMedia(id, changes) {
+  const current = await getMedia(id);
+  if (!current) throw new Error("Media not found");
+  const row = {
+    ...current,
+    ...changes,
+    id,
+    updated_at: new Date().toISOString(),
+  };
+  return putMedia(row);
+}
+
+async function reorderMedia(ids) {
+  if (new Set(ids).size !== ids.length) throw new Error("Duplicate media ids");
+  const media = await getAllMedia();
+  const byId = new Map(media.map((item) => [item.id, item]));
+  const missing = ids.filter((id) => !byId.has(id));
+  if (missing.length) throw new Error(`Unknown media ids: ${missing.join(", ")}`);
+
+  const now = new Date().toISOString();
+  const listed = new Set(ids);
+  const remaining = media.filter((item) => !listed.has(item.id));
+  const ordered = [...ids.map((id) => byId.get(id)), ...remaining];
+
+  const db = await openDatabase();
+  const tx = db.transaction("media", "readwrite");
+  const store = tx.objectStore("media");
+  ordered.forEach((item, position) => store.put({ ...item, position, updated_at: now }));
+  await transactionDone(tx);
+  db.close();
+  return getAllMedia();
+}
+
+async function recordInteraction(id, event, metadata = {}) {
+  const current = await getMedia(id);
+  if (!current) throw new Error("Media not found");
+
+  const now = new Date().toISOString();
+  const changes = { updated_at: now };
+  if (event === "started") {
+    changes.status = "started";
+    changes.started_at = current.started_at || now;
+  } else if (event === "completed") {
+    changes.status = "completed";
+    changes.completed_at = now;
+  } else if (event === "skipped") {
+    changes.status = "skipped";
+  } else if (event === "abandoned") {
+    changes.status = "abandoned";
+  }
+
+  const updated = await putMedia({ ...current, ...changes });
+  await appendEvent(id, event, metadata);
+  return updated;
+}
+
+function action(label, handler, primary = false) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = `action${primary ? " primary" : ""}`;
   button.textContent = label;
-  button.addEventListener("click", onClick);
+  button.addEventListener("click", handler);
   return button;
 }
 
-function setTab(name, { focus = false } = {}) {
-  const tabs = $$("[data-tab]");
-  const panels = $$("[data-panel]");
-
-  tabs.forEach((tab) => {
-    const selected = tab.dataset.tab === name;
-    tab.classList.toggle("active", selected);
-    tab.setAttribute("aria-selected", String(selected));
-    tab.tabIndex = selected ? 0 : -1;
-    if (selected && focus) tab.focus();
-  });
-
-  panels.forEach((panel) => {
-    const selected = panel.dataset.panel === name;
-    panel.classList.toggle("active", selected);
-    panel.hidden = !selected;
-  });
-
-  sessionStorage.setItem("watchlist.activeTab", name);
+function renderPoster(container, item) {
+  container.replaceChildren();
+  if (!item.thumbnail) return;
+  const image = document.createElement("img");
+  image.src = item.thumbnail;
+  image.alt = item.alt_text || item.title;
+  image.loading = "lazy";
+  container.append(image);
 }
 
-function initTabs() {
-  const tabs = $$("[data-tab]");
-  const allowed = new Set(tabs.map((tab) => tab.dataset.tab));
-  const stored = sessionStorage.getItem("watchlist.activeTab");
-  setTab(allowed.has(stored) ? stored : "up-next");
-
-  tabs.forEach((tab, index) => {
-    tab.addEventListener("click", () => setTab(tab.dataset.tab));
-    tab.addEventListener("keydown", (event) => {
-      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-      event.preventDefault();
-
-      let targetIndex = index;
-      if (event.key === "ArrowRight") targetIndex = (index + 1) % tabs.length;
-      if (event.key === "ArrowLeft") targetIndex = (index - 1 + tabs.length) % tabs.length;
-      if (event.key === "Home") targetIndex = 0;
-      if (event.key === "End") targetIndex = tabs.length - 1;
-
-      setTab(tabs[targetIndex].dataset.tab, { focus: true });
-    });
-  });
+function metaText(item) {
+  return [item.media_type, item.category || item.purpose, item.provider].filter(Boolean).join(" · ");
 }
 
-async function interact(id, event) {
-  await api(`/api/recommendations/${id}/interaction`, {
-    method: "POST",
-    body: JSON.stringify({ event }),
-  });
+async function startItem(item) {
+  await recordInteraction(item.id, "started", { source: "human" });
+  await refresh();
+  if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
+}
+
+async function completeItem(item) {
+  await recordInteraction(item.id, "completed", { source: "human" });
   await refresh();
 }
 
-function mediaRow(item, index, { upNext = false, history = false } = {}) {
-  const fragment = $("#media-template").content.cloneNode(true);
-  const row = fragment.querySelector(".media-row");
-  const rank = fragment.querySelector(".rank");
+async function skipItem(item) {
+  await recordInteraction(item.id, "skipped", { source: "human" });
+  await refresh();
+}
+
+async function returnItem(item) {
+  await updateMedia(item.id, { status: "queued", completed_at: null });
+  await refresh();
+}
+
+function renderHero(item) {
+  const fragment = $("#hero-template").content.cloneNode(true);
+  const hero = fragment.querySelector(".hero");
+  const poster = fragment.querySelector(".poster");
   const meta = fragment.querySelector(".meta");
   const title = fragment.querySelector(".title");
   const reason = fragment.querySelector(".reason");
   const actions = fragment.querySelector(".actions");
 
-  rank.textContent = String(index + 1).padStart(2, "0");
-  meta.textContent = [item.media_type, item.category, item.status].filter(Boolean).join(" · ");
+  renderPoster(poster, item);
+  meta.textContent = metaText(item);
+  meta.hidden = !meta.textContent;
   title.textContent = item.title;
-  reason.textContent = item.reason;
+  reason.textContent = item.reason || item.purpose || "";
+  reason.hidden = !reason.textContent;
+
+  if (item.status === "started") {
+    actions.append(action("Complete", () => completeItem(item), true));
+    actions.append(action("Abandon", async () => {
+      await recordInteraction(item.id, "abandoned", { source: "human" });
+      await refresh();
+    }));
+  } else {
+    actions.append(action(item.url ? "Watch" : "Start", () => startItem(item), true));
+    actions.append(action("Skip", () => skipItem(item)));
+  }
+
+  return hero;
+}
+
+function renderCard(item, history = false) {
+  const fragment = $("#card-template").content.cloneNode(true);
+  const card = fragment.querySelector(".media-card");
+  const poster = fragment.querySelector(".poster");
+  const meta = fragment.querySelector(".meta");
+  const title = fragment.querySelector(".title");
+  const actions = fragment.querySelector(".actions");
+
+  renderPoster(poster, item);
+  meta.textContent = history ? item.status : metaText(item);
+  meta.hidden = !meta.textContent;
+  title.textContent = item.title;
 
   if (history) {
-    if (item.status !== "completed") {
-      actions.append(action("Return to queue", async () => {
-        await api(`/api/recommendations/${item.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: "recommended" }),
-        });
-        await refresh();
-      }));
-    }
+    actions.append(action("Return", () => returnItem(item)));
+  } else if (item.status === "started") {
+    actions.append(action("Complete", () => completeItem(item)));
   } else {
-    if (item.status === "recommended") {
-      actions.append(action("Start", () => interact(item.id, "started"), upNext));
-    }
-    if (item.status === "started") {
-      actions.append(action("Complete", () => interact(item.id, "completed"), true));
-      actions.append(action("Abandon", () => interact(item.id, "abandoned")));
-    } else {
-      actions.append(action("Complete", () => interact(item.id, "completed")));
-      actions.append(action("Skip", () => interact(item.id, "skipped")));
-    }
+    actions.append(action("Start", () => startItem(item)));
+    actions.append(action("Skip", () => skipItem(item)));
   }
 
-  return row;
+  return card;
 }
 
-function emptyState(text) {
-  const empty = document.createElement("div");
-  empty.className = "empty";
-  empty.textContent = text;
-  return empty;
+function emptyState() {
+  const element = document.createElement("div");
+  element.className = "empty";
+  element.textContent = "—";
+  return element;
 }
 
-function render(data) {
-  state.data = data;
-  $("#goal").textContent = data.goal?.goal || "No active goal";
-  $("#queue-count").textContent = data.watchlist.length ? String(data.watchlist.length) : "";
-  $("#history-count").textContent = data.history.length ? String(data.history.length) : "";
+function setCount(selector, count) {
+  $(selector).textContent = count ? String(count) : "";
+}
+
+function render(state) {
+  const goal = $("#goal");
+  if (state.goal?.goal) {
+    goal.textContent = state.goal.goal;
+    goal.hidden = false;
+  } else {
+    goal.textContent = "";
+    goal.hidden = true;
+  }
+
+  setCount("#queue-count", state.watchlist.length);
+  setCount("#history-count", state.history.length);
 
   const upNext = $("#up-next");
-  upNext.replaceChildren();
-  if (data.up_next) {
-    upNext.append(mediaRow(data.up_next, 0, { upNext: true }));
-  } else {
-    upNext.append(emptyState("Nothing queued."));
-  }
+  upNext.replaceChildren(state.up_next ? renderHero(state.up_next) : emptyState());
 
   const watchlist = $("#watchlist");
   watchlist.replaceChildren();
-  const remaining = data.watchlist.slice(data.up_next ? 1 : 0);
-  if (!remaining.length) {
-    watchlist.append(emptyState("No additional media."));
+  if (state.watchlist.length) {
+    state.watchlist.forEach((item) => watchlist.append(renderCard(item)));
   } else {
-    remaining.forEach((item, index) => watchlist.append(mediaRow(item, index + 1)));
+    watchlist.append(emptyState());
   }
 
   const history = $("#history");
   history.replaceChildren();
-  if (!data.history.length) {
-    history.append(emptyState("No history."));
+  if (state.history.length) {
+    state.history.forEach((item) => history.append(renderCard(item, true)));
   } else {
-    data.history.forEach((item, index) => history.append(mediaRow(item, index, { history: true })));
+    history.append(emptyState());
   }
 }
 
 async function refresh() {
-  render(await api("/api/state"));
+  render(await getState());
+}
+
+function selectTab(name, focus = false) {
+  $$(".tab").forEach((tab) => {
+    const active = tab.dataset.tab === name;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+    if (active && focus) tab.focus();
+  });
+
+  $$(".tab-panel").forEach((panel) => {
+    const active = panel.dataset.panel === name;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+}
+
+function setupTabs() {
+  const tabs = $$(".tab");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => selectTab(tab.dataset.tab));
+    tab.addEventListener("keydown", (event) => {
+      const current = tabs.indexOf(tab);
+      let target = null;
+      if (event.key === "ArrowRight") target = tabs[(current + 1) % tabs.length];
+      if (event.key === "ArrowLeft") target = tabs[(current - 1 + tabs.length) % tabs.length];
+      if (event.key === "Home") target = tabs[0];
+      if (event.key === "End") target = tabs[tabs.length - 1];
+      if (!target) return;
+      event.preventDefault();
+      selectTab(target.dataset.tab, true);
+    });
+  });
+  selectTab("up-next");
 }
 
 function result(data) {
@@ -179,6 +438,7 @@ function modelContext() {
 async function registerWebMCPTools() {
   const mc = modelContext();
   const status = $("#agent-status");
+  status.title = "WebMCP unavailable";
   if (!mc?.registerTool) return;
 
   const register = async (tool) => {
@@ -190,151 +450,125 @@ async function registerWebMCPTools() {
   const tools = [
     {
       name: "watchlist_get_state",
-      description: "Read the active human goal, ordered watchlist, watch history, behavioral summary, and current next-watch prediction.",
+      description: "Read the human's locally stored goal, current queue, history, thumbnails, and interaction events.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
-      execute: async () => result(await api("/api/state")),
-    },
-    {
-      name: "watchlist_query_media",
-      description: "Query recommendations by status, category, or associated goal.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          status: { type: "string", enum: ["recommended", "started", "completed", "skipped", "abandoned"] },
-          category: { type: "string" },
-          goal: { type: "string" },
-        },
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true },
-      execute: async (input = {}) => {
-        const params = new URLSearchParams();
-        Object.entries(input).forEach(([key, value]) => value && params.set(key, value));
-        return result(await api(`/api/recommendations?${params.toString()}`));
-      },
+      execute: async () => result(await getState()),
     },
     {
       name: "watchlist_set_goal",
-      description: "Set the human's active physical-world goal and optional context used to maintain the media environment.",
+      description: "Set the goal this media surface currently supports. The value is stored only in the browser.",
       inputSchema: {
         type: "object",
         properties: {
-          goal: { type: "string", minLength: 2 },
+          goal: { type: "string", minLength: 1 },
           context: { type: "string" },
         },
         required: ["goal"],
         additionalProperties: false,
       },
       execute: async ({ goal, context = "" }) => {
-        const data = await api("/api/goal", {
-          method: "PUT",
-          body: JSON.stringify({ goal, context }),
-        });
+        const value = { goal, context, updated_at: new Date().toISOString() };
+        await putSetting("goal", value);
         await refresh();
-        return result(data);
+        return result(value);
       },
     },
     {
-      name: "watchlist_add_recommendation",
-      description: "Add a watchable recommendation with its goal association, category, selection reason, relevance, and optional provider URL.",
+      name: "watchlist_add_media",
+      description: "Add media to the local watch surface. Supply only fields you know. Thumbnail may be a URL or data URL; alt_text should describe it for accessibility.",
       inputSchema: {
         type: "object",
         properties: {
-          title: { type: "string" },
+          id: { type: "string" },
+          title: { type: "string", minLength: 1 },
           media_type: { type: "string" },
           provider: { type: "string" },
           url: { type: "string" },
           category: { type: "string" },
-          goal: { type: "string" },
+          purpose: { type: "string" },
           reason: { type: "string" },
-          relevance: { type: "number", minimum: 0, maximum: 1 },
-          priority: { type: "integer", minimum: 0 },
+          thumbnail: { type: "string" },
+          alt_text: { type: "string" },
+          position: { type: "integer", minimum: 0 },
+          status: { type: "string", enum: ["queued", "started", "completed", "skipped", "abandoned"] },
         },
-        required: ["title", "media_type", "category", "goal", "reason"],
+        required: ["title"],
         additionalProperties: false,
       },
       execute: async (input) => {
-        const data = await api("/api/recommendations", {
-          method: "POST",
-          body: JSON.stringify(input),
-        });
+        const item = await addMedia(input);
         await refresh();
-        return result(data);
+        return result(item);
       },
     },
     {
-      name: "watchlist_update_recommendation",
-      description: "Update the metadata, status, relevance, or priority of an existing recommendation.",
+      name: "watchlist_update_media",
+      description: "Update an existing locally stored media item, including its thumbnail, accessibility text, metadata, URL, status, or position.",
       inputSchema: {
         type: "object",
         properties: {
-          id: { type: "integer", minimum: 1 },
+          id: { type: "string" },
           title: { type: "string" },
           media_type: { type: "string" },
           provider: { type: "string" },
           url: { type: "string" },
           category: { type: "string" },
-          goal: { type: "string" },
+          purpose: { type: "string" },
           reason: { type: "string" },
-          relevance: { type: "number", minimum: 0, maximum: 1 },
-          priority: { type: "integer", minimum: 0 },
-          status: { type: "string", enum: ["recommended", "started", "completed", "skipped", "abandoned"] },
+          thumbnail: { type: "string" },
+          alt_text: { type: "string" },
+          position: { type: "integer", minimum: 0 },
+          status: { type: "string", enum: ["queued", "started", "completed", "skipped", "abandoned"] },
         },
         required: ["id"],
         additionalProperties: false,
       },
       execute: async ({ id, ...changes }) => {
-        const data = await api(`/api/recommendations/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(changes),
-        });
+        const item = await updateMedia(id, changes);
         await refresh();
-        return result(data);
+        return result(item);
       },
     },
     {
-      name: "watchlist_remove_recommendation",
-      description: "Remove a recommendation from the media environment by id.",
+      name: "watchlist_remove_media",
+      description: "Remove one media item and its interaction events from local browser storage.",
       inputSchema: {
         type: "object",
-        properties: { id: { type: "integer", minimum: 1 } },
+        properties: { id: { type: "string" } },
         required: ["id"],
         additionalProperties: false,
       },
       execute: async ({ id }) => {
-        await api(`/api/recommendations/${id}`, { method: "DELETE" });
+        await removeMedia(id);
         await refresh();
         return result({ removed: id });
       },
     },
     {
       name: "watchlist_reorder",
-      description: "Set queue priority by supplying recommendation ids in desired order, highest priority first.",
+      description: "Reorder locally stored media. IDs are supplied from highest to lowest priority.",
       inputSchema: {
         type: "object",
         properties: {
-          ids: { type: "array", items: { type: "integer", minimum: 1 }, minItems: 1, uniqueItems: true },
+          ids: { type: "array", items: { type: "string" }, minItems: 1, uniqueItems: true },
         },
         required: ["ids"],
         additionalProperties: false,
       },
       execute: async ({ ids }) => {
-        const data = await api("/api/recommendations/reorder", {
-          method: "POST",
-          body: JSON.stringify({ ids }),
-        });
+        const media = await reorderMedia(ids);
         await refresh();
-        return result(data);
+        return result(media);
       },
     },
     {
       name: "watchlist_record_interaction",
-      description: "Record a human interaction with a recommendation: started, watched, completed, skipped, or abandoned. This updates state and preserves an event for later behavioral analysis.",
+      description: "Record that the human started, watched, completed, skipped, or abandoned a media item. The event stays in local browser storage.",
       inputSchema: {
         type: "object",
         properties: {
-          id: { type: "integer", minimum: 1 },
+          id: { type: "string" },
           event: { type: "string", enum: ["started", "watched", "completed", "skipped", "abandoned"] },
           metadata: { type: "object" },
         },
@@ -342,29 +576,42 @@ async function registerWebMCPTools() {
         additionalProperties: false,
       },
       execute: async ({ id, event, metadata = {} }) => {
-        const data = await api(`/api/recommendations/${id}/interaction`, {
-          method: "POST",
-          body: JSON.stringify({ event, metadata }),
-        });
+        const item = await recordInteraction(id, event, { ...metadata, source: "agent" });
         await refresh();
-        return result(data);
+        return result(item);
+      },
+    },
+    {
+      name: "watchlist_clear_surface",
+      description: "Clear the local goal, media, thumbnails and interaction history from this browser. Requires explicit confirmation.",
+      inputSchema: {
+        type: "object",
+        properties: { confirm: { type: "boolean" } },
+        required: ["confirm"],
+        additionalProperties: false,
+      },
+      annotations: { destructiveHint: true },
+      execute: async ({ confirm }) => {
+        if (confirm !== true) throw new Error("Explicit confirmation required");
+        await clearSurface();
+        await refresh();
+        return result({ cleared: true });
       },
     },
   ];
 
-  try {
-    for (const tool of tools) await register(tool);
-    status.textContent = `WebMCP · ${tools.length} tools`;
-  } catch (error) {
-    console.error("WebMCP registration failed", error);
-    status.textContent = "WebMCP unavailable";
-  }
+  for (const tool of tools) await register(tool);
+  status.classList.add("connected");
+  status.title = `WebMCP connected · ${tools.length} tools`;
 }
 
-initTabs();
-$("#refresh").addEventListener("click", refresh);
-window.addEventListener("watchlist:refresh", refresh);
-window.addEventListener("pagehide", () => toolControllers.forEach((controller) => controller.abort()));
-
+setupTabs();
 refresh().catch(console.error);
-registerWebMCPTools().catch(console.error);
+registerWebMCPTools().catch((error) => {
+  console.error("WebMCP registration failed", error);
+  const status = $("#agent-status");
+  status.classList.remove("connected");
+  status.title = "WebMCP registration failed";
+});
+window.addEventListener("watchlist:refresh", () => refresh().catch(console.error));
+window.addEventListener("pagehide", () => toolControllers.forEach((controller) => controller.abort()));
