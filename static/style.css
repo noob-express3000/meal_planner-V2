@@ -42,6 +42,10 @@ button { cursor: pointer; }
   flex-direction: column;
 }
 
+.shell > img[aria-hidden="true"] {
+  display: none !important;
+}
+
 .goal {
   position: absolute;
   top: 14px;
