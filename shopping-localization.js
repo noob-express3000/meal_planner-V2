@@ -20,24 +20,12 @@
     const profile = currentProfile();
     const code = clean(currency).toUpperCase();
     if (!/^[A-Z]{3}$/.test(code) || code === UNKNOWN_CURRENCY) {
-      throw new Error("currency must be a real three-letter ISO 4217 code such as USD, EUR, GBP, ZAR or MGA.");
+      throw new Error("currency must be a real three-letter ISO 4217 code.");
     }
     return pricingApi.setProfile({
       location: profile.location,
       preferred_stores: profile.preferredStores,
       currency: code
-    });
-  }
-
-  // The original pricing module predates global localization and used ZAR as its
-  // empty-state default. New/unpriced profiles are now explicitly unresolved so
-  // the agent, rather than the website, chooses currency from the user's location.
-  const initial = currentProfile();
-  if (initial.currency === "ZAR" && initial.savedQuotes.length === 0) {
-    pricingApi.setProfile({
-      location: initial.location,
-      preferred_stores: initial.preferredStores,
-      currency: UNKNOWN_CURRENCY
     });
   }
 
@@ -61,7 +49,6 @@
     }, true);
   }
 
-  // Replace the original button to remove its older location-agnostic prompt.
   const oldPromptButton = document.querySelector("#copyPricingPrompt");
   if (oldPromptButton) {
     const promptButton = oldPromptButton.cloneNode(true);
@@ -82,7 +69,7 @@
     try {
       await document.modelContext.registerTool({
         name: "set_shopping_currency",
-        description: "Set the ISO 4217 currency used for grocery prices. Infer this from the user's explicitly saved shopping location before researching or saving prices. For example use USD for the United States, MGA for Madagascar, ZAR for South Africa, GBP for the United Kingdom, and JPY for Japan. Do not infer or request device geolocation; use only the location saved in shopping_price_context.",
+        description: "Set the ISO 4217 currency used for grocery prices. Infer it only from the shopping location explicitly saved in shopping_price_context. Do not request or infer device geolocation.",
         inputSchema: {
           type: "object",
           properties: {
