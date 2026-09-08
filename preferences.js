@@ -69,7 +69,7 @@
     if (Object.hasOwn(input, "budget_amount")) next.budget.amount = numberOrNull(input.budget_amount, 0);
     if (Object.hasOwn(input, "budget_currency")) {
       const currency = String(input.budget_currency ?? "").trim().toUpperCase();
-      if (currency && !/^[A-Z]{3}$/.test(currency)) throw new Error("Budget currency must be a three-letter ISO code, such as ZAR or USD.");
+      if (currency && !/^[A-Z]{3}$/.test(currency)) throw new Error("Budget currency must be a three-letter ISO 4217 code.");
       next.budget.currency = currency;
     }
 
@@ -206,7 +206,7 @@
             allergies: arrayOfStrings("Food allergies that must be avoided"),
             dislikes: arrayOfStrings("Ingredients or foods the user prefers not to eat"),
             budget_amount: { type: ["number", "null"], minimum: 0, description: "Target weekly food budget amount" },
-            budget_currency: { type: "string", description: "Three-letter ISO 4217 currency code, e.g. ZAR" },
+            budget_currency: { type: "string", description: "Three-letter ISO 4217 currency code" },
             equipment: arrayOfStrings("Available cooking equipment, e.g. stove, microwave, air fryer"),
             max_cook_minutes: { type: ["number", "null"], minimum: 0, description: "Maximum preferred total cooking time in minutes" },
             goals: arrayOfStrings("Meal-planning goals such as high-protein, weight gain, low cost or meal prep")
