@@ -16,10 +16,18 @@
     };
   }
 
+  let pricingLoadFailed = false;
+
   function loadPricing() {
     try {
       const parsed = JSON.parse(localStorage.getItem(PRICING_KEY) || "null");
-      if (!parsed || typeof parsed !== "object") return freshPricing();
+      if (!parsed) return freshPricing();
+      if (typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray(parsed.quotes) || !Array.isArray(parsed.preferredStores)) throw new Error("Invalid pricing data");
+      if (typeof parsed.location !== "string" || !/^[A-Z]{3}$/.test(parsed.currency)) throw new Error("Invalid pricing profile");
+      for (const quote of parsed.quotes) {
+        if (!quote || typeof quote.ingredient !== "string" || !quote.ingredient.trim() || typeof quote.store !== "string" || !Number.isFinite(quote.price) || quote.price < 0 || !Number.isFinite(quote.packageQuantity) || quote.packageQuantity <= 0) throw new Error("Invalid price quote");
+        if (quote.validUntil) parseDateKey(quote.validUntil);
+      }
       return {
         ...freshPricing(),
         ...parsed,
@@ -27,15 +35,24 @@
         quotes: Array.isArray(parsed.quotes) ? parsed.quotes : []
       };
     } catch {
+      pricingLoadFailed = true;
       return freshPricing();
     }
   }
 
   let pricing = loadPricing();
+  let committedPricing = clone(pricing);
 
   function persistPricing() {
     pricing.updatedAt = new Date().toISOString();
-    localStorage.setItem(PRICING_KEY, JSON.stringify(pricing));
+    try {
+      if (pricingLoadFailed) throw new Error("Unreadable pricing data");
+      localStorage.setItem(PRICING_KEY, JSON.stringify(pricing));
+    } catch {
+      pricing = clone(committedPricing);
+      throw new Error("Could not save pricing. Check saved data, browser storage space and permissions; changes were not saved.");
+    }
+    committedPricing = clone(pricing);
     renderPricing();
   }
 
@@ -176,9 +193,15 @@
   }
 
   function setShoppingProfile({ location = "", preferred_stores = [], currency = UNKNOWN_CURRENCY } = {}) {
+    if (!Array.isArray(preferred_stores)) throw new Error("Preferred stores must be an array.");
+    const nextCurrency = clean(currency).toUpperCase() || UNKNOWN_CURRENCY;
+    if (!/^[A-Z]{3}$/.test(nextCurrency)) throw new Error("Currency must be a three-letter ISO 4217 code.");
+    const nextStores = [...new Set(preferred_stores.map(clean).filter(Boolean))];
+    // Existing quote amounts cannot be reinterpreted in a different currency.
+    if (nextCurrency !== pricing.currency) pricing.quotes = [];
     pricing.location = clean(location);
-    pricing.preferredStores = [...new Set((preferred_stores || []).map(clean).filter(Boolean))];
-    pricing.currency = clean(currency).toUpperCase() || UNKNOWN_CURRENCY;
+    pricing.preferredStores = nextStores;
+    pricing.currency = nextCurrency;
     persistPricing();
     return { location: pricing.location, preferredStores: [...pricing.preferredStores], currency: pricing.currency };
   }
@@ -186,14 +209,23 @@
   function savePriceQuotes({ quotes = [] } = {}) {
     if (!Array.isArray(quotes) || !quotes.length) throw new Error("quotes must contain at least one price quote.");
     const now = new Date().toISOString();
-    for (const input of quotes) {
+    if (pricing.currency === UNKNOWN_CURRENCY) throw new Error("Set the shopping currency before saving price quotes.");
+    const prepared = quotes.map((input) => {
       const ingredient = requireText(input.ingredient, "Ingredient");
       const store = requireText(input.store, "Store");
       const packageQuantity = Number(input.package_quantity);
       const price = Number(input.price);
       if (!Number.isFinite(packageQuantity) || packageQuantity <= 0) throw new Error(`Invalid package quantity for ${ingredient}.`);
       if (!Number.isFinite(price) || price < 0) throw new Error(`Invalid price for ${ingredient}.`);
-      const record = {
+      const validUntil = clean(input.valid_until);
+      if (validUntil) parseDateKey(validUntil);
+      const sourceUrl = clean(input.source_url);
+      if (sourceUrl) {
+        let url;
+        try { url = new URL(sourceUrl); } catch { throw new Error("Invalid price source URL."); }
+        if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Price source URL must use HTTP or HTTPS without credentials.");
+      }
+      return {
         id: uid(),
         ingredient,
         packageQuantity,
@@ -202,10 +234,12 @@
         store,
         location: clean(input.location || pricing.location),
         promotion: clean(input.promotion),
-        validUntil: clean(input.valid_until),
-        sourceUrl: clean(input.source_url),
+        validUntil,
+        sourceUrl,
         updatedAt: now
       };
+    });
+    for (const record of prepared) {
       const quoteKey = `${key(record.ingredient)}|${key(record.store)}|${record.packageQuantity}|${key(record.packageUnit)}|${key(record.location)}`;
       pricing.quotes = pricing.quotes.filter((quote) => `${key(quote.ingredient)}|${key(quote.store)}|${quote.packageQuantity}|${key(quote.packageUnit)}|${key(quote.location)}` !== quoteKey);
       pricing.quotes.push(record);
@@ -243,7 +277,7 @@
 
     const style = document.createElement("style");
     style.textContent = `
-      .shopping-price-controls{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(180px,1fr) auto auto;gap:8px;margin-bottom:10px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface)}
+      .shopping-price-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:8px;margin-bottom:10px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface)}
       .shopping-price-controls input{min-width:0}
       .shopping-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:58px;margin-bottom:10px;padding:10px 14px;border:1px solid var(--border);border-radius:4px;background:var(--surface)}
       .shopping-summary strong{font-family:Georgia,"Times New Roman",serif;font-size:1.15rem;font-weight:500}
@@ -263,7 +297,7 @@
     controls.className = "shopping-price-controls";
     controls.innerHTML = `
       <label class="sr-only" for="shoppingLocation">Shopping location</label>
-      <input id="shoppingLocation" placeholder="City or region (optional)" autocomplete="address-level2" />
+      <input id="shoppingLocation" placeholder="City or region (optional)" autocomplete="off" />
       <label class="sr-only" for="shoppingStores">Preferred stores</label>
       <input id="shoppingStores" placeholder="Preferred stores, comma separated" />
       <button class="button ghost" type="submit">Save location</button>
@@ -283,16 +317,19 @@
 
     controls.addEventListener("submit", (event) => {
       event.preventDefault();
-      setShoppingProfile({
-        location: document.querySelector("#shoppingLocation").value,
-        preferred_stores: document.querySelector("#shoppingStores").value.split(","),
-        currency: pricing.currency
-      });
-      showToast("Shopping location saved");
+      try {
+        const location = document.querySelector("#shoppingLocation").value;
+        setShoppingProfile({
+          location,
+          preferred_stores: document.querySelector("#shoppingStores").value.split(","),
+          currency: key(location) === key(pricing.location) ? pricing.currency : UNKNOWN_CURRENCY
+        });
+        showToast("Shopping settings saved");
+      } catch (error) { showToast(error.message); }
     });
 
     document.querySelector("#copyPricingPrompt").addEventListener("click", async () => {
-      const prompt = "Using this page's WebMCP tools, read my shopping price context, find current prices and relevant promotions for the ingredients on my shopping list near my saved location and preferred stores, save those price quotes back to the page, then tell me the estimated basket total and cheapest useful deals. Do not change my recipes or meal plan.";
+      const prompt = "Using this page's WebMCP tools, read my shopping price context. Use my saved currency or ask me which currency to use, then set it with set_shopping_currency before saving quotes. Find current prices and relevant promotions for the ingredients on my shopping list near my saved location and preferred stores, save those price quotes back to the page, then tell me the estimated basket total and cheapest useful deals. Do not change my recipes or meal plan.";
       try {
         await navigator.clipboard.writeText(prompt);
         showToast("Pricing prompt copied");
@@ -323,6 +360,7 @@
         estimateCell.className = "price-estimate";
         estimateCell.textContent = item.estimate ? formatCurrency(item.estimate.cost) : "—";
       }
+      row.querySelectorAll(".price-source").forEach((node) => node.remove());
       if (item.estimate) {
         const details = row.children[0];
         const source = document.createElement("small");
@@ -334,8 +372,11 @@
     });
 
     const summary = document.querySelector("#shoppingPriceSummary");
-    if (!result.itemCount) {
-      summary.innerHTML = `<div><strong>No purchases</strong><small>Your planned meals do not require anything beyond the pantry.</small></div>`;
+    if (pricingLoadFailed) {
+      summary.textContent = "Saved pricing could not be read. Existing storage was preserved.";
+    } else if (!result.itemCount) {
+      const planned = getMealPlan(currentWeekRange()).length > 0;
+      summary.innerHTML = `<div><strong>${planned ? "No purchases" : "No meals planned"}</strong><small>${planned ? "Your planned meals do not require anything beyond the pantry." : "Add meals to the selected week to build a shopping list."}</small></div>`;
     } else if (!result.pricedCount) {
       summary.innerHTML = `<div><strong>Estimated total —</strong><small>${pricing.location ? "No saved prices yet." : "Set a location, then ask your agent to price the list."}</small></div>`;
     } else {
@@ -426,32 +467,25 @@
       }
     ];
 
-    let registered = 0;
     for (const tool of tools) {
       try {
-        await document.modelContext.registerTool({
+        await registerMealTool({
           ...tool,
           execute: async (input) => {
             try { return await tool.execute(input || {}); }
             catch (error) { return toolFailure(error); }
           }
         });
-        registered += 1;
       } catch (error) {
         console.error(`WebMCP pricing tool registration failed for ${tool.name}`, error);
       }
     }
 
-    if (registered) {
-      const status = document.querySelector("#mcpStatus");
-      const existing = Number(status?.textContent?.match(/(\d+)(?:\/\d+)?\s*tools?/)?.[1] || 0);
-      if (status && existing) status.textContent = `WebMCP · ${existing + registered} tools`;
-    }
   }
 
   injectUI();
   renderPricing();
-  setTimeout(registerPricingTools, 0);
+  registerPricingTools();
 
   globalThis.mealPlannerPricing = {
     getContext: priceContext,

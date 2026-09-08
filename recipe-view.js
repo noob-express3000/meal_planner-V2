@@ -1,11 +1,12 @@
 (() => {
   const dialog = document.createElement("dialog");
   dialog.id = "recipeViewDialog";
+  dialog.setAttribute("aria-labelledby", "recipeViewTitle");
   dialog.innerHTML = `
     <div class="recipe-view-shell">
       <div class="dialog-head">
         <div>
-          <h2 data-view-title>Recipe</h2>
+          <h2 id="recipeViewTitle" data-view-title>Recipe</h2>
           <div class="recipe-view-meta" data-view-meta></div>
         </div>
         <button class="icon-button" type="button" data-view-close aria-label="Close">×</button>
@@ -101,9 +102,4 @@
 
   renderRecipes();
 
-  window.addEventListener("DOMContentLoaded", () => {
-    const localizationScript = document.createElement("script");
-    localizationScript.src = "./shopping-localization.js";
-    document.head.append(localizationScript);
-  }, { once: true });
 })();

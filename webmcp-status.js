@@ -1,106 +1,48 @@
 (() => {
-  const context = document.modelContext;
-  if (!context?.getTools) return;
-
-  let syncing = false;
+  const registered = new Set();
+  const attempted = new Set();
+  let revision = 0;
 
   async function syncStatus() {
-    if (syncing) return;
-    syncing = true;
-    try {
-      const tools = await context.getTools();
-      const status = document.querySelector("#mcpStatus");
-      if (!status) return;
-      const count = Array.isArray(tools) ? tools.length : 0;
-      if (count > 0) {
-        const text = `WebMCP · ${count} tools`;
-        if (status.textContent !== text) status.textContent = text;
-        status.classList.add("ready");
-        status.title = "This page is exposing structured tools to your browser agent.";
-      }
-    } catch (error) {
-      console.debug("WebMCP tool count unavailable", error);
-    } finally {
-      syncing = false;
-    }
-  }
-
-  context.addEventListener?.("toolchange", syncStatus);
-
-  const observeStatus = () => {
+    const current = ++revision;
     const status = document.querySelector("#mcpStatus");
     if (!status) return;
-    new MutationObserver(() => queueMicrotask(syncStatus))
-      .observe(status, { childList: true, subtree: true, characterData: true });
-    syncStatus();
-  };
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", observeStatus, { once: true });
-  } else {
-    observeStatus();
-  }
-})();
-
-// Privacy guard: a saved shopping location remains available to pricing tools,
-// but should not be echoed into user-facing status/error text during demos.
-(() => {
-  const PRICING_KEY = "meal-planner.shopping-pricing.v1";
-
-  function savedLocation() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(PRICING_KEY) || "null");
-      return typeof parsed?.location === "string" ? parsed.location.trim() : "";
-    } catch {
-      return "";
+    const context = document.modelContext;
+    if (!context?.registerTool) {
+      status.textContent = "WebMCP unavailable";
+      status.classList.remove("ready");
+      status.title = "Use a browser and external agent with WebMCP support. The human interface still works.";
+      return;
     }
+    let names = registered;
+    let discovered = false;
+    if (context.getTools) {
+      try {
+        const tools = await context.getTools();
+        if (Array.isArray(tools)) {
+          names = new Set(tools.map((tool) => tool.name).filter((name) => attempted.has(name)));
+          discovered = true;
+        }
+      } catch { /* Successful registrations remain the fallback count. */ }
+    }
+    if (current !== revision) return;
+    const complete = attempted.size > 0 && names.size === attempted.size;
+    status.textContent = `WebMCP · ${complete ? names.size : `${names.size}/${attempted.size}`} tools`;
+    status.classList.toggle("ready", complete);
+    status.title = complete
+      ? (discovered ? "All page tools are discoverable by the browser." : "All page tools registered; browser discovery is unavailable.")
+      : "Some page tools are unavailable. Check browser support and the console before an agent demo.";
   }
 
-  function redact(value) {
-    const text = String(value ?? "");
-    const location = savedLocation();
-    if (!location) return text;
-    return text.split(location).join("saved location");
-  }
-
-  function sanitizeVisibleStatus() {
-    const location = savedLocation();
-    if (!location) return;
-
-    const summary = document.querySelector("#shoppingPriceSummary");
-    summary?.querySelectorAll("small").forEach((node) => {
-      const text = node.textContent || "";
-      if (!text.includes(location)) return;
-      if (text.startsWith("No saved prices for ")) {
-        node.textContent = "No saved prices yet.";
-      } else {
-        node.textContent = text
-          .replace(` · ${location}`, "")
-          .replace(location, "")
-          .replace(/\s+·\s*$/, "")
-          .trim();
-      }
-    });
-
-    [document.querySelector("#toast"), document.querySelector("#mcpStatus")]
-      .filter(Boolean)
-      .forEach((node) => {
-        if (node.textContent?.includes(location)) node.textContent = redact(node.textContent);
-      });
-  }
-
-  const originalAlert = globalThis.alert?.bind(globalThis);
-  if (originalAlert) globalThis.alert = (message) => originalAlert(redact(message));
-
-  function install() {
-    sanitizeVisibleStatus();
-    new MutationObserver(sanitizeVisibleStatus)
-      .observe(document.body, { childList: true, subtree: true, characterData: true });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", install, { once: true });
-  } else {
-    install();
-  }
+  globalThis.registerMealTool = async (tool) => {
+    attempted.add(tool.name);
+    try {
+      await document.modelContext.registerTool(tool);
+      registered.add(tool.name);
+    } finally {
+      syncStatus();
+    }
+  };
+  document.modelContext?.addEventListener?.("toolchange", syncStatus);
+  document.addEventListener("DOMContentLoaded", syncStatus, { once: true });
 })();

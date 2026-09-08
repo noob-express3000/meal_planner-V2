@@ -27,25 +27,35 @@
     return parsed;
   }
 
+  let preferencesLoadFailed = false;
+
   function loadPreferences() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (!parsed) return emptyPreferences();
+      if (parsed.version !== 1) throw new Error("Invalid profile data");
       if (parsed?.version === 1) {
+        const currency = String(parsed.budget?.currency ?? "").trim().toUpperCase();
+        if (currency && !/^[A-Z]{3}$/.test(currency)) throw new Error("Invalid currency");
+        const householdSize = numberOrNull(parsed.householdSize, 1);
+        if (householdSize !== null && !Number.isInteger(householdSize)) throw new Error("Invalid household size");
         return {
           ...emptyPreferences(),
           ...parsed,
+          householdSize,
+          maxCookMinutes: numberOrNull(parsed.maxCookMinutes),
           dietaryRestrictions: list(parsed.dietaryRestrictions),
           allergies: list(parsed.allergies),
           dislikes: list(parsed.dislikes),
           equipment: list(parsed.equipment),
           goals: list(parsed.goals),
           budget: {
-            amount: parsed.budget?.amount ?? null,
+            amount: numberOrNull(parsed.budget?.amount),
             currency: String(parsed.budget?.currency ?? "").trim().toUpperCase()
           }
         };
       }
-    } catch {}
+    } catch { preferencesLoadFailed = true; }
     return emptyPreferences();
   }
 
@@ -59,6 +69,7 @@
     const next = clone(preferences);
 
     if (Object.hasOwn(input, "household_size")) next.householdSize = numberOrNull(input.household_size, 1);
+    if (next.householdSize !== null && !Number.isInteger(next.householdSize)) throw new Error("Household size must be a whole number.");
     if (Object.hasOwn(input, "dietary_restrictions")) next.dietaryRestrictions = list(input.dietary_restrictions);
     if (Object.hasOwn(input, "allergies")) next.allergies = list(input.allergies);
     if (Object.hasOwn(input, "dislikes")) next.dislikes = list(input.dislikes);
@@ -74,15 +85,20 @@
     }
 
     next.updatedAt = new Date().toISOString();
+    try {
+      if (preferencesLoadFailed) throw new Error("Unreadable profile");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch { throw new Error("Could not save Profile. Check saved data, browser storage space and permissions; changes were not saved."); }
     preferences = next;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
     renderPreferences();
     return clone(preferences);
   }
 
   function clearPreferences() {
+    try { localStorage.removeItem(STORAGE_KEY); }
+    catch { throw new Error("Could not clear Profile. Check browser storage permissions."); }
     preferences = emptyPreferences();
-    localStorage.removeItem(STORAGE_KEY);
+    preferencesLoadFailed = false;
     renderPreferences();
     return clone(preferences);
   }
@@ -138,7 +154,7 @@
     if (!summary.children.length) {
       const empty = document.createElement("div");
       empty.className = "profile-summary-empty";
-      empty.textContent = "No planning constraints saved.";
+      empty.textContent = preferencesLoadFailed ? "Saved Profile could not be read. Clear it to start again; existing storage was preserved." : "No planning constraints saved.";
       summary.append(empty);
     }
   }
@@ -168,8 +184,11 @@
     });
 
     $("#clearPreferences")?.addEventListener("click", () => {
-      clearPreferences();
-      globalThis.showToast?.("Planning profile cleared");
+      try {
+        if (!confirm("Clear the saved planning profile?")) return;
+        clearPreferences();
+        showToast("Planning profile cleared");
+      } catch (error) { showToast(error.message); }
     });
   }
 
@@ -201,7 +220,7 @@
         inputSchema: {
           type: "object",
           properties: {
-            household_size: { type: ["number", "null"], minimum: 1, description: "Number of people normally being planned for" },
+            household_size: { type: ["integer", "null"], minimum: 1, description: "Number of people normally being planned for" },
             dietary_restrictions: arrayOfStrings("Dietary rules such as vegetarian, halal or gluten-free"),
             allergies: arrayOfStrings("Food allergies that must be avoided"),
             dislikes: arrayOfStrings("Ingredients or foods the user prefers not to eat"),
@@ -219,7 +238,7 @@
 
     for (const tool of tools) {
       try {
-        await document.modelContext.registerTool({
+        await registerMealTool({
           ...tool,
           execute: async (input) => {
             try { return await tool.execute(input || {}); }

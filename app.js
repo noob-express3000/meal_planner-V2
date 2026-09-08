@@ -18,31 +18,39 @@ function freshState() {
   };
 }
 
+let stateLoadFailed = false;
+let committedState;
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return freshState();
-    const parsed = JSON.parse(raw);
-    if (parsed?.version !== 1) return freshState();
-    return {
-      ...freshState(),
-      ...parsed,
-      recipes: Array.isArray(parsed.recipes) ? parsed.recipes : [],
-      plans: Array.isArray(parsed.plans) ? parsed.plans : [],
-      pantry: Array.isArray(parsed.pantry) ? parsed.pantry : []
-    };
+    return mealPlannerImport.validate(JSON.parse(raw));
   } catch {
+    stateLoadFailed = true;
     return freshState();
   }
 }
 
-let state = loadState();
+let state = freshState();
+committedState = clone(state);
 let visibleWeek = mondayOf(new Date());
 
 function persist() {
   state.updatedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    if (stateLoadFailed) throw new Error("Unreadable saved data");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    state = clone(committedState);
+    renderAll();
+    throw new Error(stateLoadFailed
+      ? "Saved meal data could not be read. Import a valid backup to replace it."
+      : "Could not save meal data. Check browser storage space and permissions; changes were not saved.");
+  }
+  committedState = clone(state);
   renderAll();
+  document.dispatchEvent(new Event("mealstatechange"));
 }
 
 function normalizeText(value) {
@@ -89,9 +97,12 @@ function dateKey(value) {
 }
 
 function parseDateKey(value) {
-  const [year, month, day] = String(value).split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  if (!year || !month || !day || Number.isNaN(date.getTime())) throw new Error(`Invalid date: ${value}`);
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Date must use YYYY-MM-DD.");
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(0);
+  date.setFullYear(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  if (dateKey(date) !== value) throw new Error("Date must be a valid calendar date.");
   return date;
 }
 
@@ -109,7 +120,9 @@ function mealBySlot(date, mealType) {
 
 function cleanIngredient(input) {
   const name = requireText(input?.name, "Ingredient name");
-  const quantity = numberOrNull(input?.quantity);
+  const raw = input?.quantity;
+  const quantity = numberOrNull(raw);
+  if (raw !== null && raw !== undefined && raw !== "" && quantity === null) throw new Error("Ingredient quantity must be a finite number or blank.");
   if (quantity !== null && quantity < 0) throw new Error(`Ingredient quantity cannot be negative: ${name}`);
   return { name, quantity, unit: normalizeText(input?.unit) };
 }
@@ -122,16 +135,23 @@ function saveRecipe(input) {
   if (!Array.isArray(input.instructions) || input.instructions.length === 0) throw new Error("At least one instruction is required.");
 
   const existing = input.id ? recipeById(input.id) : null;
+  if (input.id && !existing) throw new Error("Recipe not found.");
+  if (input.tags !== undefined && !Array.isArray(input.tags)) throw new Error("Tags must be an array.");
+  const instructions = input.instructions.map(normalizeText).filter(Boolean);
+  if (!instructions.length) throw new Error("At least one non-empty instruction is required.");
+  const prepMinutes = Number(input.prepMinutes ?? 0);
+  const cookMinutes = Number(input.cookMinutes ?? 0);
+  if (![prepMinutes, cookMinutes].every((value) => Number.isFinite(value) && value >= 0)) throw new Error("Cooking times must be finite and non-negative.");
   const now = new Date().toISOString();
   const recipe = {
     id: existing?.id || uid(),
     name,
     servings,
-    prepMinutes: Math.max(0, Number(input.prepMinutes) || 0),
-    cookMinutes: Math.max(0, Number(input.cookMinutes) || 0),
+    prepMinutes,
+    cookMinutes,
     tags: [...new Set((input.tags || []).map(normalizeText).filter(Boolean))],
     ingredients: input.ingredients.map(cleanIngredient),
-    instructions: input.instructions.map(normalizeText).filter(Boolean),
+    instructions,
     createdAt: existing?.createdAt || now,
     updatedAt: now
   };
@@ -237,6 +257,8 @@ function planWeek(meals) {
 }
 
 function removeMeal({ date, meal_type }) {
+  parseDateKey(date);
+  if (!MEAL_TYPES.includes(meal_type)) throw new Error("Invalid meal type.");
   const before = state.plans.length;
   state.plans = state.plans.filter((meal) => !(meal.date === date && meal.mealType === meal_type));
   persist();
@@ -347,6 +369,7 @@ function getMealContext({ start_date, end_date }) {
 }
 
 function exportData() {
+  if (stateLoadFailed) throw new Error("Saved meal data could not be read. Existing storage was preserved; no empty backup was exported.");
   return clone(state);
 }
 
@@ -420,8 +443,10 @@ function renderRecipes() {
     $("[data-edit]", card).addEventListener("click", () => openRecipeDialog(recipe));
     $("[data-delete]", card).addEventListener("click", () => {
       if (confirm(`Delete “${recipe.name}”? Meals using it will also be removed from the plan.`)) {
-        deleteRecipe(recipe.id);
-        showToast("Recipe deleted");
+        try {
+          deleteRecipe(recipe.id);
+          showToast("Recipe deleted");
+        } catch (error) { showToast(error.message); }
       }
     });
     list.append(card);
@@ -436,7 +461,10 @@ function renderPantry() {
     const row = document.createElement("div");
     row.className = "list-row";
     row.innerHTML = `<div><strong>${escapeHtml(item.name)}</strong><small>Available</small></div><span class="quantity">${formatQuantity(item.quantity)} ${escapeHtml(item.unit)}</span><button class="text-button" type="button">Remove</button>`;
-    $("button", row).addEventListener("click", () => setPantryItem({ name: item.name, quantity: 0, unit: item.unit }));
+    $("button", row).addEventListener("click", () => {
+      try { setPantryItem({ name: item.name, quantity: 0, unit: item.unit }); }
+      catch (error) { showToast(error.message); }
+    });
     list.append(row);
   }
 }
@@ -483,7 +511,7 @@ function parseIngredientLines(value) {
   return String(value).split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
     const parts = line.split("|").map((part) => part.trim());
     if (parts.length < 3) throw new Error(`Ingredient line must be “quantity | unit | ingredient”: ${line}`);
-    return { quantity: numberOrNull(parts[0]), unit: parts[1], name: parts.slice(2).join("|").trim() };
+    return cleanIngredient({ quantity: parts[0], unit: parts[1], name: parts.slice(2).join("|").trim() });
   });
 }
 
@@ -491,7 +519,7 @@ function openMealDialog(date, mealType) {
   const meal = mealBySlot(date, mealType);
   const select = $("#mealRecipe");
   select.innerHTML = state.recipes.length
-    ? state.recipes.map((recipe) => `<option value="${recipe.id}">${escapeHtml(recipe.name)}</option>`).join("")
+    ? state.recipes.map((recipe) => `<option value="${escapeHtml(recipe.id)}">${escapeHtml(recipe.name)}</option>`).join("")
     : `<option value="">Add a recipe first</option>`;
   $("#mealDate").value = date;
   $("#mealType").value = mealType;
@@ -503,10 +531,32 @@ function openMealDialog(date, mealType) {
 }
 
 function bindUI() {
-  $$(".tab").forEach((tab) => tab.addEventListener("click", () => {
-    $$(".tab").forEach((item) => item.classList.toggle("active", item === tab));
+  const tabs = $$(".tab");
+  const activate = (tab) => {
+    tabs.forEach((item) => {
+      const active = item === tab;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-selected", String(active));
+      item.tabIndex = active ? 0 : -1;
+    });
     $$("[data-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === tab.dataset.tab));
-  }));
+  };
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activate(tab));
+    tab.addEventListener("keydown", (event) => {
+      let next;
+      if (["ArrowRight", "ArrowDown"].includes(event.key)) next = (index + 1) % tabs.length;
+      if (["ArrowLeft", "ArrowUp"].includes(event.key)) next = (index + tabs.length - 1) % tabs.length;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = tabs.length - 1;
+      if (next === undefined) return;
+      event.preventDefault();
+      activate(tabs[next]);
+      tabs[next].focus();
+    });
+  });
+  $(".brand").addEventListener("click", (event) => { event.preventDefault(); activate(tabs[0]); });
+  activate(tabs[0]);
 
   $("#previousWeek").addEventListener("click", () => { visibleWeek = addDays(visibleWeek, -7); renderAll(); });
   $("#nextWeek").addEventListener("click", () => { visibleWeek = addDays(visibleWeek, 7); renderAll(); });
@@ -514,7 +564,7 @@ function bindUI() {
   $("#addRecipeButton").addEventListener("click", () => openRecipeDialog());
 
   $("[data-copy-agent-prompt]")?.addEventListener("click", async () => {
-    const prompt = "Plan four dinners from my saved recipes, use what is already in my pantry, avoid repeating last week, then build my shopping list.";
+    const prompt = "Use this page’s WebMCP tools to read my saved Profile and meal context. Plan four dinners that fit those preferences, use my pantry, save any missing recipes and supporting Sources, then build my shopping list. Ask me for missing constraints.";
     try {
       await navigator.clipboard.writeText(prompt);
       showToast("Agent prompt copied");
@@ -567,9 +617,11 @@ function bindUI() {
   });
 
   $("[data-remove-meal]").addEventListener("click", () => {
-    removeMeal({ date: $("#mealDate").value, meal_type: $("#mealType").value });
-    $("#mealDialog").close();
-    showToast("Meal removed");
+    try {
+      removeMeal({ date: $("#mealDate").value, meal_type: $("#mealType").value });
+      $("#mealDialog").close();
+      showToast("Meal removed");
+    } catch (error) { showToast(error.message); }
   });
 
   $("#pantryForm").addEventListener("submit", (event) => {
@@ -586,19 +638,25 @@ function bindUI() {
   $("#copyShoppingButton").addEventListener("click", async () => {
     const items = buildShoppingList({ ...currentWeekRange(), subtract_pantry: true });
     const text = items.map((item) => `- ${item.name}: ${item.buyQuantity === null ? "as needed" : `${formatQuantity(item.buyQuantity)} ${item.unit}`.trim()}`).join("\n");
-    await navigator.clipboard.writeText(text || "Nothing to buy.");
-    showToast("Shopping list copied");
+    try {
+      await navigator.clipboard.writeText(text || "Nothing to buy.");
+      showToast("Shopping list copied");
+    } catch {
+      showToast("Clipboard unavailable. You can select and copy the list directly.");
+    }
   });
 
   $("#exportButton").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(exportData(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `meal-planner-${dateKey(new Date())}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast("Meal data exported");
+    try {
+      const blob = new Blob([JSON.stringify(exportData(), null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `meal-planner-${dateKey(new Date())}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("Meal data exported");
+    } catch (error) { showToast(error.message); }
   });
 }
 
@@ -619,10 +677,7 @@ function toolFailure(error) {
 }
 
 async function registerWebMCP() {
-  const status = $("#mcpStatus");
   if (!document.modelContext?.registerTool) {
-    status.textContent = "WebMCP unavailable";
-    status.title = "Open this site in ChatGPT's in-app browser or a WebMCP-enabled Chrome build.";
     return;
   }
 
@@ -699,7 +754,7 @@ async function registerWebMCP() {
     },
     {
       name: "plan_meals",
-      description: "Plan or replace multiple meal slots atomically enough for a weekly planning workflow. Prefer this over many plan_meal calls when the user approves several meals at once.",
+      description: "Plan or replace multiple meal slots in one validated update. Prefer this over many plan_meal calls when the user approves several meals at once.",
       inputSchema: object({
         meals: {
           type: "array",
@@ -750,27 +805,27 @@ async function registerWebMCP() {
     }
   ];
 
-  let registered = 0;
   for (const tool of tools) {
     try {
-      await document.modelContext.registerTool({
+      await registerMealTool({
         ...tool,
         execute: async (input) => {
           try { return await tool.execute(input || {}); }
           catch (error) { return toolFailure(error); }
         }
       });
-      registered++;
     } catch (error) {
       console.error(`WebMCP registration failed for ${tool.name}`, error);
     }
   }
-
-  status.textContent = registered === tools.length ? `WebMCP · ${registered} tools` : `WebMCP · ${registered}/${tools.length} tools`;
-  status.classList.toggle("ready", registered > 0);
-  status.title = registered ? "This page is exposing structured tools to your browser agent." : "WebMCP is present, but tool registration failed. Check the console.";
 }
 
-bindUI();
-renderAll();
-registerWebMCP();
+document.addEventListener("DOMContentLoaded", () => {
+  state = loadState();
+  committedState = clone(state);
+  bindUI();
+  renderAll();
+  document.dispatchEvent(new Event("mealstatechange"));
+  registerWebMCP();
+  if (stateLoadFailed) showToast("Saved meal data could not be read. Import a valid backup; existing storage was preserved.");
+});

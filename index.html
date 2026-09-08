@@ -17,17 +17,17 @@
     <aside class="sidebar">
       <a class="brand" href="#planner" aria-label="Meal Planner home">Meal Planner</a>
 
-      <nav class="tabs" aria-label="Meal planner sections">
-        <button class="tab active" data-tab="planner" type="button"><span>Plan</span></button>
-        <button class="tab" data-tab="recipes" type="button"><span>Recipes</span></button>
-        <button class="tab" data-tab="pantry" type="button"><span>Pantry</span></button>
-        <button class="tab" data-tab="shopping" type="button"><span>Shopping</span></button>
-        <button class="tab" data-tab="sources" type="button"><span>Sources</span></button>
-        <button class="tab" data-tab="preferences" type="button"><span>Profile</span></button>
+      <nav class="tabs" role="tablist" aria-label="Meal planner sections">
+        <button class="tab active" data-tab="planner" id="tab-planner" role="tab" aria-controls="planner" aria-selected="true" tabindex="0" type="button"><span>Plan</span></button>
+        <button class="tab" data-tab="recipes" id="tab-recipes" role="tab" aria-controls="recipes" aria-selected="false" tabindex="-1" type="button"><span>Recipes</span></button>
+        <button class="tab" data-tab="pantry" id="tab-pantry" role="tab" aria-controls="pantry" aria-selected="false" tabindex="-1" type="button"><span>Pantry</span></button>
+        <button class="tab" data-tab="shopping" id="tab-shopping" role="tab" aria-controls="shopping" aria-selected="false" tabindex="-1" type="button"><span>Shopping</span></button>
+        <button class="tab" data-tab="sources" id="tab-sources" role="tab" aria-controls="sources" aria-selected="false" tabindex="-1" type="button"><span>Sources</span></button>
+        <button class="tab" data-tab="preferences" id="tab-preferences" role="tab" aria-controls="preferences" aria-selected="false" tabindex="-1" type="button"><span>Profile</span></button>
       </nav>
 
       <div class="topbar-actions">
-        <span id="mcpStatus" class="mcp-pill" title="WebMCP connection status"><span>Checking WebMCP…</span></span>
+        <span id="mcpStatus" role="status" aria-live="polite" class="mcp-pill" title="WebMCP connection status"><span>Checking WebMCP…</span></span>
         <button class="button ghost agent-prompt" type="button" data-copy-agent-prompt aria-label="Copy agent prompt">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v12H5zM8 10l2 2-2 2M12 14h4"/></svg>
           <span>Agent prompt</span>
@@ -41,7 +41,7 @@
 
     <section class="workspace">
       <main>
-        <section id="planner" class="panel active" data-panel="planner">
+        <section id="planner" class="panel active" data-panel="planner" role="tabpanel" aria-labelledby="tab-planner" tabindex="0">
           <div class="section-head">
             <div><h2 id="weekTitle">Meal plan</h2></div>
             <div class="week-controls">
@@ -53,7 +53,7 @@
           <div id="plannerGrid" class="planner-grid"></div>
         </section>
 
-        <section id="recipes" class="panel" data-panel="recipes">
+        <section id="recipes" class="panel" data-panel="recipes" role="tabpanel" aria-labelledby="tab-recipes" tabindex="0">
           <div class="section-head">
             <div><h2>Recipes</h2></div>
             <button id="addRecipeButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add recipe</button>
@@ -61,7 +61,7 @@
           <div id="recipeList" class="recipe-grid"></div>
         </section>
 
-        <section id="pantry" class="panel" data-panel="pantry">
+        <section id="pantry" class="panel" data-panel="pantry" role="tabpanel" aria-labelledby="tab-pantry" tabindex="0">
           <div class="section-head"><div><h2>Pantry</h2></div></div>
           <form id="pantryForm" class="inline-form">
             <label class="sr-only" for="pantryName">Ingredient</label>
@@ -75,7 +75,7 @@
           <div id="pantryList" class="simple-list"></div>
         </section>
 
-        <section id="shopping" class="panel" data-panel="shopping">
+        <section id="shopping" class="panel" data-panel="shopping" role="tabpanel" aria-labelledby="tab-shopping" tabindex="0">
           <div class="section-head">
             <div><h2>Shopping</h2></div>
             <button id="copyShoppingButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M8 8h11v12H8zM5 16H4V4h11v1"/></svg>Copy list</button>
@@ -83,7 +83,7 @@
           <div id="shoppingList" class="simple-list"></div>
         </section>
 
-        <section id="sources" class="panel" data-panel="sources">
+        <section id="sources" class="panel" data-panel="sources" role="tabpanel" aria-labelledby="tab-sources" tabindex="0">
           <div class="section-head">
             <div><h2>Sources</h2></div>
             <button id="addSourceButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add source</button>
@@ -91,7 +91,7 @@
           <div id="sourceList" class="source-grid"></div>
         </section>
 
-        <section id="preferences" class="panel" data-panel="preferences">
+        <section id="preferences" class="panel" data-panel="preferences" role="tabpanel" aria-labelledby="tab-preferences" tabindex="0">
           <div class="section-head"><div><h2>Planning profile</h2></div></div>
           <form id="preferencesForm" class="preferences-form">
             <div class="preference-grid">
@@ -101,17 +101,17 @@
               </label>
 
               <label class="preference-field compact">
-                <span>Max cook time</span>
+                <span>Max total time (min)</span>
                 <input id="prefMaxCook" type="number" min="0" step="1" placeholder="30" />
               </label>
 
-              <label class="preference-field">
-                <span>Weekly budget</span>
+              <div class="preference-field">
+                <span id="budgetLabel">Weekly budget</span>
                 <div class="budget-fields">
-                  <input id="prefBudget" type="number" min="0" step="any" placeholder="100" />
+                  <input aria-labelledby="budgetLabel" id="prefBudget" type="number" min="0" step="any" placeholder="100" />
                   <input id="prefCurrency" maxlength="3" inputmode="text" placeholder="ISO" aria-label="Budget currency" />
                 </div>
-              </label>
+              </div>
 
               <label class="preference-field">
                 <span>Dietary restrictions</span>
@@ -151,7 +151,7 @@
     </section>
   </div>
 
-  <dialog id="recipeDialog">
+  <dialog id="recipeDialog" aria-labelledby="recipeDialogTitle">
     <form id="recipeForm" method="dialog" class="dialog-form">
       <div class="dialog-head">
         <div><h2 id="recipeDialogTitle">Add recipe</h2></div>
@@ -160,7 +160,7 @@
       <input id="recipeId" type="hidden" />
       <label>Recipe name<input id="recipeName" required /></label>
       <div class="form-grid two">
-        <label>Servings<input id="recipeServings" type="number" min="1" step="1" value="2" required /></label>
+        <label>Servings<input id="recipeServings" type="number" min="0.01" step="any" value="2" required /></label>
         <label>Prep minutes<input id="recipePrep" type="number" min="0" step="1" value="10" /></label>
         <label>Cook minutes<input id="recipeCook" type="number" min="0" step="1" value="20" /></label>
         <label>Tags<input id="recipeTags" placeholder="quick, vegetarian" /></label>
@@ -176,7 +176,7 @@
     </form>
   </dialog>
 
-  <dialog id="mealDialog">
+  <dialog id="mealDialog" aria-labelledby="mealDialogTitle">
     <form id="mealForm" method="dialog" class="dialog-form compact">
       <div class="dialog-head">
         <div><h2 id="mealDialogTitle">Dinner</h2></div>
@@ -185,7 +185,7 @@
       <input id="mealDate" type="hidden" />
       <input id="mealType" type="hidden" />
       <label>Recipe<select id="mealRecipe" required></select></label>
-      <label>Servings<input id="mealServings" type="number" min="1" step="1" value="2" required /></label>
+      <label>Servings<input id="mealServings" type="number" min="0.01" step="any" value="2" required /></label>
       <div class="dialog-actions">
         <button class="button ghost" type="button" data-remove-meal>Remove meal</button>
         <button class="button primary" type="submit">Save meal</button>
@@ -193,10 +193,10 @@
     </form>
   </dialog>
 
-  <dialog id="sourceDialog">
+  <dialog id="sourceDialog" aria-labelledby="sourceDialogTitle">
     <form id="sourceForm" method="dialog" class="dialog-form compact">
       <div class="dialog-head">
-        <div><h2>Add source</h2></div>
+        <div><h2 id="sourceDialogTitle">Add source</h2></div>
         <button class="icon-button" value="cancel" type="button" data-close-source-dialog aria-label="Close">×</button>
       </div>
       <input id="sourceId" type="hidden" />

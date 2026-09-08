@@ -70,7 +70,7 @@ Profile state is stored locally and contains:
 
 ## WebMCP
 
-The page registers structured tools directly with `document.modelContext.registerTool()`. There is no separate MCP server.
+The page registers structured tools with `document.modelContext.registerTool()` through the shared `registerMealTool` status helper. There is no separate MCP server. A compatible browser and external agent are required for agent operation; ordinary browsers retain the full human interface.
 
 The current surface contains **25 tools**.
 
@@ -114,21 +114,11 @@ The current surface contains **25 tools**.
 - `save_source`
 - `delete_source`
 
-The status indicator reports the tools actually discoverable by the browser instead of displaying a hard-coded count.
+The status indicator counts this page’s discoverable tools when the browser provides `getTools()`. Otherwise it counts successful registrations and identifies that fallback in its tooltip. Failed registrations show a partial count. The expected complete surface is 25 tools, registered once each.
 
 ## Architecture
 
-```text
-Human ─────────────────────┐
-                           ▼
-                     Web interface
-                           │
-AI agent ─── WebMCP ───────┤
-                           ▼
-                      localStorage
-                           │
-             deterministic calculations
-```
+Human UI → deterministic browser-local state ← WebMCP tools ← external AI agent.
 
 The application remains usable when WebMCP is unavailable. WebMCP exposes machine-operable access to the same state and functions rather than introducing a second application backend.
 
@@ -141,9 +131,19 @@ State belongs to the current browser profile and site origin.
 - `meal-planner.sources.v1` — videos, articles, references and recipe provenance
 - `meal-planner.preferences.v1` — household constraints, budget, equipment and goals
 
-Shopping location is optional and explicitly supplied by the user. The application does not request device geolocation. It remains available to pricing tools but is not echoed into status/error messages.
+Shopping location is optional and explicitly supplied by the user. The application does not request device geolocation or select a geographic currency default. The saved value is visible in its editable field and available to pricing tools, but is not added to status messages or shopping summaries.
+
+Sources and Profile are separate from the core meal snapshot. **Export/import covers recipes, meal plans, pantry and timestamps only.** Import replaces that core state after validation; it does not back up, replace or clear Sources, Profile, shopping settings or price quotes. Recipe links in Sources can become unresolved after a recipe is deleted or a different core snapshot is imported; the source remains available.
+
+Failed writes return an error and preserve the last committed state. Unreadable stored records display a warning and are not silently overwritten. A valid core import can replace unreadable meal data; Profile has an explicit Clear action. Corrupt Sources/pricing currently require recovery through browser storage tools.
+
+Use one active tab during the demo: state is not synchronized between open tabs. Clearing site data, changing origin or using another browser profile does not retain the saved workspace. The app does not install an offline service worker.
+
+External source links and supported embeds contact their providers and follow those providers’ availability and privacy behavior. No analytics, application API key or embedded model is included.
 
 ## Quick evaluation
+
+For a demonstration under 60 seconds: show a saved Profile, ask the external agent to save one recipe and its Source, plan it for the selected week, then show the calculated Shopping list. Change a pantry quantity to demonstrate deterministic recalculation. Prepare the compatible browser/agent session beforehand; external research and video playback are network-dependent.
 
 1. Serve the application over HTTPS or run it locally.
 2. Open it in a browser environment with WebMCP/Site Tools support.
@@ -162,6 +162,22 @@ python -m http.server 8080
 ```
 
 Open `http://localhost:8080/`.
+
+## Calculations and pricing
+
+Shopping groups ingredient names and units after trimming, case folding and collapsing whitespace. Pantry subtraction uses those same name/unit pairs; it does not convert `kg` to `g` or merge synonyms. Use consistent names and units. Quantities are rounded to two decimals; unquantified ingredients remain “as needed”. Profile constraints guide the external agent; the site does not certify allergy safety or enforce dietary suitability.
+
+Optional pricing applies to the currently selected week. It compares whole-package purchase costs, converts compatible package mass/volume/count units, excludes expired quotes, and reports partial coverage when some items cannot be priced. Preferred stores take precedence when matching quotes are available. Cup/spoon conversions use fixed recipe conventions (`cup = 240 ml`, `tbsp = 15 ml`, `tsp = 5 ml`); ambiguous units are not converted between dimensions.
+
+Set a user-chosen currency before saving quotes (`XXX` means unset). Profile budget currency and shopping currency are separate. Changing shopping currency clears existing quotes so amounts are never silently relabelled. Changing location through the human form resets the currency and clears quotes. Promotions are descriptive text; supply the effective single-package price. Estimates do not include delivery, tax adjustments or conditional multi-buy calculations, and the site does not fetch or verify prices itself.
+
+## Checks
+
+```bash
+node --test tests/*.test.cjs
+```
+
+CI checks all application scripts for syntax, verifies referenced files and key surfaces, and runs the dependency-free Node regression suite. The suite executes the actual scripts in HTML order using a minimal DOM/WebMCP adapter. It checks all 25 documented registrations, state mutation, rollback, malformed storage, import validation and pricing calculations. It does not replace a real-browser check of layout, clipboard/download behavior, video playback or native WebMCP interoperability.
 
 ## Deployment
 
@@ -184,10 +200,12 @@ Configuration is included for:
 | `sources.js` | Sources library, video embedding and WebMCP tools |
 | `sources.css` | Sources styling |
 | `shopping-pricing.js` | Package-aware price quotes and basket estimates |
-| `shopping-localization.js` | Agent-resolved shopping currency |
+| `shopping-localization.js` | User-chosen shopping currency tool |
 | `import-data.js` | Validated core-state import |
-| `recipe-view.js` | Read-only recipe view |
-| `webmcp-status.js` | Tool discovery status and visible location redaction |
+| `recipe-view.js` / `recipe-view.css` | Read-only recipe view |
+| `webmcp-status.js` | Shared registration and tool discovery status |
+
+Scripts load once in the order shown in `index.html`: the status helper first, core function definitions next, then recipe view, pricing, currency, import validation, Sources and Profile. Core state loading and initial binding/rendering wait for `DOMContentLoaded`, when the importer’s validator and render extensions are available.
 
 ## License
 
