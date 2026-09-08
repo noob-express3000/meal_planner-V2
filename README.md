@@ -1,12 +1,14 @@
-# FoodFromThought — AI Builders 2026
+# Meal Planner — AI Builders 2026
 
-FoodFromThought is the **AI Builders 2026 competition variant** developed in `noob-express3000/the-watchlist`.
+This repository is the **AI Builders 2026 competition variant** of Meal Planner.
 
-Baseline: copied from `noob-express3000/meal_planner` on **2026-09-08**. The original Meal Planner repository remains separate. All competition work after that copy is made here.
+Baseline: copied from `noob-express3000/meal_planner` on **2026-09-08**. The original repository remains separate. All competition work after that copy is made in `noob-express3000/the-watchlist`.
+
+Despite the repository name, the product in this repository is **Meal Planner**.
 
 ## Product
 
-FoodFromThought is a local-first food-planning environment that can be operated by either a human or a WebMCP-capable AI agent.
+Meal Planner is a local-first planning environment that can be operated by either a human or a WebMCP-capable AI agent.
 
 The website owns structured state, validation, persistence and deterministic calculations. The agent handles reasoning, selection, research and multi-step orchestration.
 
@@ -23,7 +25,7 @@ Six primary views:
 - **Sources** — videos, articles and references saved by the human or agent
 - **Profile** — persistent planning constraints and goals
 
-The AI Builders variant uses a fixed application shell on desktop and compact navigation on smaller screens. Human-facing controls and agent-facing tools operate the same underlying state.
+The AI Builders variant uses a new application shell with fixed navigation on desktop and compact navigation on smaller screens. The interface is designed so the human-facing controls and agent-facing tools operate the same underlying state.
 
 ## Planning profile
 
@@ -68,8 +70,6 @@ WebMCP tools:
 ## Local state
 
 State is persisted in browser `localStorage` and belongs to the current site origin/browser profile.
-
-The storage keys retain the original `meal-planner` namespace so existing browser data survives the FoodFromThought rebrand:
 
 - `meal-planner.webmcp.v1` — recipes, meal plans and pantry
 - `meal-planner.shopping-pricing.v1` — optional shopping profile and saved price quotes
@@ -149,7 +149,7 @@ Every mutation is immediately visible in the same interface the human uses.
 ```text
 Human ─────────────────────┐
                            ▼
-                   FoodFromThought
+                     Web interface
                            │
 AI agent ─── WebMCP ───────┤
                            ▼
@@ -196,10 +196,8 @@ Deployment configuration is included for Render and Netlify.
 | File | Purpose |
 | --- | --- |
 | `index.html` | Application structure and navigation |
-| `styles.css` | Base component styling |
-| `shell.css` | AI Builders application shell and Profile styling |
-| `brand.css` | FoodFromThought branding and darker palette overrides |
-| `favicon.svg` | FoodFromThought monogram |
+| `styles.css` | Original component styling |
+| `shell.css` | AI Builders application-shell redesign and Profile styling |
 | `app.js` | Meal state, calculations, UI and core WebMCP tools |
 | `preferences.js` | Persistent planning profile and preference WebMCP tools |
 | `sources.js` | Source library, video embedding and source WebMCP tools |
