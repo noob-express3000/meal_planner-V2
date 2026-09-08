@@ -1,0 +1,59 @@
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.source-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.source-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 0;
+  background: #000;
+}
+
+.source-card-body {
+  padding: 16px;
+}
+
+.source-meta {
+  margin-bottom: 7px;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.source-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.source-card p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: .9rem;
+}
+
+.source-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.source-actions a {
+  text-decoration: none;
+}
+
+#sourceDialog .dialog-form {
+  width: min(560px, calc(100vw - 32px));
+}
