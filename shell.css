@@ -50,7 +50,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   text-align: left;
-  color: #7f8088;
+  color: var(--text-secondary);
   background: transparent;
 }
 
@@ -133,7 +133,16 @@ select {
 
 .planner-grid {
   gap: 10px;
+  overflow-x: auto;
 }
+
+.recipe-card, .list-row, .source-card, .profile-summary-item, .meal-title {
+  overflow-wrap: anywhere;
+}
+.recipe-actions, .source-actions { flex-wrap: wrap; }
+.source-grid { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+#sourceDialog .dialog-form { width: 100%; }
+.preference-field:focus-within { border-color: var(--accent-hover); }
 
 .day-card,
 .recipe-card,
@@ -192,7 +201,7 @@ select {
 .preference-field.wide { grid-column: span 12; }
 
 .preference-field > span {
-  color: #777881;
+  color: var(--text-secondary);
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .08em;
@@ -204,7 +213,6 @@ select {
   width: 100%;
   padding: 0;
   border: 0;
-  outline: 0;
   color: var(--text);
   background: transparent;
   resize: vertical;
@@ -215,7 +223,7 @@ select {
 
 .preference-field input::placeholder,
 .preference-field textarea::placeholder {
-  color: #4f5058;
+  color: var(--text-secondary);
 }
 
 .budget-fields {
@@ -249,7 +257,7 @@ select {
 }
 
 .profile-summary-item span {
-  color: #696a72;
+  color: var(--text-secondary);
   font-size: .7rem;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -266,7 +274,7 @@ select {
   min-height: 90px;
   display: grid;
   place-items: center;
-  color: #65666e;
+  color: var(--text-secondary);
   border: 1px dashed #24252b;
   border-radius: 8px;
 }
@@ -282,6 +290,7 @@ select {
     height: auto;
     min-height: 62px;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     padding: 10px 14px;
@@ -295,7 +304,8 @@ select {
   .tabs {
     display: flex;
     gap: 2px;
-    min-width: max-content;
+    min-width: 0;
+    flex-wrap: wrap;
   }
 
   .tab {
@@ -335,17 +345,25 @@ select {
   .brand { display: none; }
 
   .tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 0;
   }
-  .tabs::-webkit-scrollbar { display: none; }
+  .tab { min-height: 42px; justify-content: center; }
 
   .topbar-actions {
-    display: none;
+    display: flex;
+    flex-wrap: wrap;
+    min-width: 0;
+    margin-left: 0;
+    gap: 6px;
   }
+  .topbar-actions .mcp-pill { flex: 1; }
+  .topbar-actions .button { width: 38px; justify-content: center; padding: 0; }
+  .topbar-actions .button span { display: none; }
 
   .workspace main {
-    padding: 24px 14px 60px;
+    padding: 24px 14px 40px;
   }
 
   .section-head {

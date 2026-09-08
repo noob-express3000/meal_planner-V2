@@ -112,10 +112,14 @@
 
   function importMealData(input) {
     const validated = validateImportData(input);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(validated)); }
+    catch { throw new Error("Could not import meal data. Check browser storage space and permissions; existing data was preserved."); }
     state = validated;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    stateLoadFailed = false;
+    committedState = clone(state);
     visibleWeek = mondayOf(new Date());
     renderAll();
+    document.dispatchEvent(new Event("mealstatechange"));
     return {
       imported: true,
       recipes: state.recipes.length,
@@ -167,9 +171,9 @@
   async function registerImportTool() {
     if (!document.modelContext?.registerTool) return;
     try {
-      await document.modelContext.registerTool({
+      await registerMealTool({
         name: "import_meal_data",
-        description: "Replace the current browser-local recipes, meal-plan history and pantry with a previously exported Meal Planner version 1 snapshot. Validate all recipe references, meal slots, quantities and pantry records before replacing state. Shopping location and saved price quotes are not changed.",
+        description: "Replace the current browser-local recipes, meal-plan history and pantry with a previously exported Meal Planner version 1 snapshot. Validate all recipe references, meal slots, quantities and pantry records before replacing state. Sources, Profile, shopping settings and price quotes are not included or changed.",
         inputSchema: {
           type: "object",
           properties: {
@@ -205,7 +209,7 @@
   }
 
   installImportUI();
-  setTimeout(registerImportTool, 0);
+  registerImportTool();
 
   globalThis.mealPlannerImport = {
     validate: validateImportData,

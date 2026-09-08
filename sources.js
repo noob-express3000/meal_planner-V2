@@ -4,18 +4,36 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
 
+  let sourceLoadFailed = false;
+
   function loadStore() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (parsed?.version === 1 && Array.isArray(parsed.sources)) return parsed;
-    } catch {}
+      if (!parsed) return { version: 1, sources: [] };
+      if (parsed.version !== 1 || !Array.isArray(parsed.sources)) throw new Error("Invalid source data");
+      const ids = new Set();
+      const sources = parsed.sources.map((source) => {
+        if (!source || !SOURCE_TYPES.includes(source.type) || !source.id || ids.has(source.id)) throw new Error("Invalid source data");
+        ids.add(source.id);
+        return { ...source, title: requireText(source.title, "Source title"), url: normalizeUrl(source.url) };
+      });
+      return { version: 1, sources };
+    } catch { sourceLoadFailed = true; }
     return { version: 1, sources: [] };
   }
 
   let sourceStore = loadStore();
+  let committedSources = clone(sourceStore);
 
   function persistSources() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sourceStore));
+    try {
+      if (sourceLoadFailed) throw new Error("Unreadable source data");
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sourceStore));
+    } catch {
+      sourceStore = clone(committedSources);
+      throw new Error("Could not save Sources. Check saved data, browser storage space and permissions; changes were not saved.");
+    }
+    committedSources = clone(sourceStore);
     renderSources();
   }
 
@@ -35,22 +53,24 @@
 
   function normalizeUrl(value) {
     const raw = requireText(value, "Source URL");
-    const url = new URL(raw);
+    let url;
+    try { url = new URL(raw); } catch { throw new Error("Enter a valid source URL."); }
+    if (url.username || url.password) throw new Error("Source URLs must not contain credentials.");
     if (!["http:", "https:"].includes(url.protocol)) throw new Error("Source URL must use http or https.");
     return url.toString();
   }
 
   function inferProvider(url) {
     const host = new URL(url).hostname.replace(/^www\./, "");
-    if (host === "youtu.be" || host.endsWith("youtube.com")) return "YouTube";
-    if (host.endsWith("vimeo.com")) return "Vimeo";
+    if (host === "youtu.be" || (host === "youtube.com" || host.endsWith(".youtube.com"))) return "YouTube";
+    if ((host === "vimeo.com" || host.endsWith(".vimeo.com"))) return "Vimeo";
     return host;
   }
 
   function inferType(url, requestedType) {
     if (SOURCE_TYPES.includes(requestedType)) return requestedType;
     const parsed = new URL(url);
-    if (/youtu\.be$|youtube\.com$|vimeo\.com$/i.test(parsed.hostname.replace(/^www\./, ""))) return "video";
+    if (/^(?:youtu\.be|(?:[a-z0-9-]+\.)*(?:youtube\.com|vimeo\.com))$/i.test(parsed.hostname.replace(/^www\./, ""))) return "video";
     if (/\.(mp4|webm|ogg)(?:$|\?)/i.test(parsed.pathname + parsed.search)) return "video";
     return "article";
   }
@@ -58,6 +78,9 @@
   function saveSource(input) {
     const url = normalizeUrl(input.url);
     const existing = input.id ? sourceStore.sources.find((item) => item.id === input.id) : null;
+    if (input.id && !existing) throw new Error("Source not found.");
+    const relation = cleanText(input.recipe_id || input.recipeId);
+    if (relation && !recipeById(relation)) throw new Error("Linked recipe not found.");
     const now = new Date().toISOString();
     const source = {
       id: existing?.id || (crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`),
@@ -66,7 +89,7 @@
       type: inferType(url, input.type),
       provider: cleanText(input.provider) || inferProvider(url),
       note: cleanText(input.note),
-      recipeId: cleanText(input.recipe_id || input.recipeId),
+      recipeId: relation,
       createdAt: existing?.createdAt || now,
       updatedAt: now
     };
@@ -96,7 +119,7 @@
     const host = url.hostname.replace(/^www\./, "");
     let id = "";
     if (host === "youtu.be") id = url.pathname.split("/").filter(Boolean)[0] || "";
-    if (host.endsWith("youtube.com")) {
+    if ((host === "youtube.com" || host.endsWith(".youtube.com"))) {
       if (url.pathname === "/watch") id = url.searchParams.get("v") || "";
       if (url.pathname.startsWith("/shorts/")) id = url.pathname.split("/")[2] || "";
       if (url.pathname.startsWith("/embed/")) id = url.pathname.split("/")[2] || "";
@@ -107,7 +130,7 @@
   function vimeoEmbedUrl(value) {
     const url = new URL(value);
     const host = url.hostname.replace(/^www\./, "");
-    if (!host.endsWith("vimeo.com")) return null;
+    if (!(host === "vimeo.com" || host.endsWith(".vimeo.com"))) return null;
     const id = url.pathname.split("/").filter(Boolean).find((part) => /^\d+$/.test(part));
     return id ? `https://player.vimeo.com/video/${id}` : null;
   }
@@ -132,7 +155,8 @@
       video.className = "source-video";
       video.src = source.url;
       video.controls = true;
-      video.preload = "metadata";
+      video.preload = "none";
+      video.setAttribute("aria-label", source.title);
       return video;
     }
     return null;
@@ -185,8 +209,10 @@
     remove.type = "button";
     remove.textContent = "Remove";
     remove.addEventListener("click", () => {
-      deleteSource(source.id);
-      if (typeof showToast === "function") showToast("Source removed");
+      try {
+        deleteSource(source.id);
+        showToast("Source removed");
+      } catch (error) { showToast(error.message); }
     });
 
     actions.append(open, remove);
@@ -199,6 +225,10 @@
     const list = $("#sourceList");
     if (!list) return;
     list.replaceChildren();
+    if (sourceLoadFailed) {
+      list.textContent = "Saved Sources could not be read. Existing storage was preserved.";
+      return;
+    }
     if (!sourceStore.sources.length) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
@@ -239,7 +269,7 @@
       dialog.showModal();
     });
 
-    $("[data-close-source-dialog]")?.addEventListener("click", () => dialog.close());
+    document.querySelectorAll("[data-close-source-dialog]").forEach((button) => button.addEventListener("click", () => dialog.close()));
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -306,7 +336,7 @@
 
     for (const tool of tools) {
       try {
-        await document.modelContext.registerTool({
+        await registerMealTool({
           ...tool,
           execute: async (input) => {
             try { return await tool.execute(input || {}); }
@@ -319,6 +349,7 @@
     }
   }
 
+  document.addEventListener("mealstatechange", renderSources);
   renderSources();
   bindSourcesUI();
   registerSourceTools();
