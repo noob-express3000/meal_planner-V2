@@ -17,14 +17,17 @@ jobs:
         run: |
           node --check app.js
           node --check sources.js
+          node --check preferences.js
       - name: Verify WebMCP integration and submission files
         shell: bash
         run: |
           test -f index.html
           test -f styles.css
+          test -f shell.css
           test -f app.js
           test -f sources.js
           test -f sources.css
+          test -f preferences.js
           test -f README.md
           test -f LICENSE
           grep -q 'document.modelContext.registerTool' app.js
@@ -32,3 +35,6 @@ jobs:
           grep -q 'build_shopping_list' app.js
           grep -q 'save_source' sources.js
           grep -q 'list_sources' sources.js
+          grep -q 'get_preferences' preferences.js
+          grep -q 'set_preferences' preferences.js
+          grep -q 'data-tab="preferences"' index.html
