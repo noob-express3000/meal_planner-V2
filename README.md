@@ -23,7 +23,7 @@ The interface has six views:
 
 Example objective:
 
-> We are two people with R800 for groceries this week. Keep dinners high-protein, under 30 minutes and peanut-free. Use what is already in the pantry. Add any missing recipes, retain useful sources, plan the week and build the shopping list.
+> We are two people with a weekly grocery budget of 100 in my saved currency. Keep dinners high-protein, under 30 minutes and peanut-free. Use what is already in the pantry. Add any missing recipes, retain useful sources, plan the week and build the shopping list.
 
 A WebMCP-capable agent can:
 
