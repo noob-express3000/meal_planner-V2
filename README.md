@@ -1,172 +1,153 @@
-# Meal Planner
+# Meal Planner — AI Builders 2026
 
-Static meal-planning application with a WebMCP interface.
+This repository is the **AI Builders competition variant** of Meal Planner.
 
-Live application: https://meal-planner-llai.onrender.com/
+Baseline: copied from `noob-express3000/meal_planner` on **2026-09-08**. The original repository remains separate and is not the working repository for this entry. All competition changes are made here in `noob-express3000/the-watchlist`.
 
-The application stores recipes, pantry inventory, dated meal plans and optional shopping-price data in browser localStorage. It derives shopping quantities and package-aware estimated purchase costs from the stored records. The human interface and WebMCP tools call the same functions and modify the same browser-local state.
+## Product
 
-## Functional scope
+Meal Planner is a local-first planning surface that can be operated by either a human or a WebMCP-capable AI agent.
 
-| Area | Stored or calculated data |
-| --- | --- |
-| Recipes | Name, base servings, preparation time, cooking time, tags, ingredients and ordered instructions |
-| Ingredients | Name, numeric quantity or unquantified value, and unit |
-| Meal plans | Date, breakfast/lunch/dinner slot, recipe reference and serving count |
-| History | Meal-plan records remain queryable by date range |
-| Pantry | Ingredient name, quantity and unit |
-| Shopping list | Required quantity, pantry quantity used, remaining quantity and contributing recipes |
-| Shopping profile | Optional user-supplied location, preferred stores and currency |
-| Price quotes | Ingredient, package size, store, price, location, promotion, expiry and optional source URL |
-| Shopping estimate | Package-aware estimated cost per item, priced-item coverage and basket total |
-| Export | Complete core meal-planning state snapshot as JSON |
-| Import | Validated version 1 snapshot restoring recipes, meal-plan history and pantry |
+The website owns structured state, validation and deterministic calculations. The agent handles reasoning, research and multi-step orchestration.
 
-Recipe quantities are scaled by planned servings. Shopping calculations group ingredients by normalized name and unit, sum the scaled requirements, and optionally subtract matching pantry stock. Core recipe and pantry calculations do not attempt arbitrary ingredient-unit conversion.
+No account, database or embedded model is required.
 
-The optional pricing layer converts common mass, volume and count units when comparing required quantities with purchasable package sizes. It estimates the number of whole packages that must actually be bought. For example, a 600 g requirement priced from a 500 g package is costed as two packages, not 1.2 packages.
+## Current interface
 
-Deleting a recipe also removes meal-plan entries that reference it. Setting a pantry quantity to zero removes that pantry record.
+Five sections:
 
-## WebMCP implementation
+- **Weekly plan** — breakfast, lunch and dinner slots by date
+- **Recipes** — structured ingredients, servings, cooking time and instructions
+- **Pantry** — quantities already available
+- **Shopping** — calculated requirements after recipe scaling and pantry subtraction
+- **Sources** — videos, articles and references used by the human or agent
 
-The application registers 20 tools with document.modelContext.registerTool():
+Supported video sources can play directly inside the Sources view:
 
-| Tool | Operation |
-| --- | --- |
-| meal_context | Return recipes, pantry inventory, planned meals and calculated shopping items for a date range |
-| list_recipes | Filter recipes by text, tags and maximum total cooking time |
-| get_recipe | Return one complete recipe and optionally scale its ingredient quantities |
-| save_recipe | Create or update a structured recipe |
-| delete_recipe | Delete a recipe and its dependent planned meals |
-| get_meal_plan | Return planned meals for a date range |
-| plan_meal | Create or replace one dated meal slot |
-| plan_meals | Create or replace multiple meal slots in one call |
-| remove_meal | Remove one dated meal slot |
-| list_pantry | Return current pantry inventory |
-| set_pantry_item | Create, replace or remove a pantry quantity |
-| build_shopping_list | Calculate shopping quantities for a date range |
-| export_meal_data | Return the complete stored meal-planning state |
-| import_meal_data | Validate and replace core meal-planning state from a version 1 export snapshot |
-| shopping_price_context | Return the saved shopping location, preferred stores, current shopping requirements and existing current price quotes |
-| set_shopping_profile | Save or clear the user-supplied shopping location and preferred stores |
-| set_shopping_currency | Set the ISO 4217 currency inferred by the agent from the user's saved shopping location |
-| save_price_quotes | Save researched package prices and relevant promotions for shopping-list ingredients |
-| priced_shopping_list | Return package-aware item estimates, store/deal details, coverage and estimated basket total |
-| clear_price_quotes | Clear saved prices and promotions without changing recipes, pantry, meal plan or shopping location |
+- YouTube
+- Vimeo
+- direct MP4/WebM/OGG URLs
 
-Each tool defines a JSON input schema, validates input through the application functions, returns structured JSON-safe data and updates the visible page after a mutation.
+Other sources remain normal external links.
 
-There is no separate MCP server. Tool registration and execution happen in the page.
+A source may optionally reference a saved recipe. This provides lightweight provenance: an agent can create a recipe and leave behind the article or video it used.
 
-## State flow
+## Local state
 
-1. A UI event or WebMCP tool calls an application function.
-2. The function validates and normalizes the input.
-3. The function reads or modifies browser-local state.
-4. Mutations write versioned state to localStorage.
-5. The planner, recipe list, pantry, shopping list and price estimates rerender from that state.
-
-Storage keys:
+Core meal-planning state is stored in browser `localStorage`:
 
 - `meal-planner.webmcp.v1` — recipes, meal plans and pantry
-- `meal-planner.shopping-pricing.v1` — optional shopping profile and price quotes
+- `meal-planner.shopping-pricing.v1` — optional shopping profile and saved price quotes
+- `meal-planner.sources.v1` — videos, articles, references and recipe provenance
 
-No account, backend service or database is required. State is specific to the browser profile and site origin. The Export action creates a portable JSON snapshot of the core meal-planning state. Import validates that snapshot before replacing recipes, plans and pantry; shopping location and saved price quotes are left unchanged.
+State belongs to the current browser profile and site origin.
+
+## WebMCP
+
+The application exposes structured browser tools with `document.modelContext.registerTool()`.
+
+### Planning and recipes
+
+- `meal_context`
+- `list_recipes`
+- `get_recipe`
+- `save_recipe`
+- `delete_recipe`
+- `get_meal_plan`
+- `plan_meal`
+- `plan_meals`
+- `remove_meal`
+
+### Pantry and shopping
+
+- `list_pantry`
+- `set_pantry_item`
+- `build_shopping_list`
+- `shopping_price_context`
+- `set_shopping_profile`
+- `set_shopping_currency`
+- `save_price_quotes`
+- `priced_shopping_list`
+- `clear_price_quotes`
+
+### Data portability
+
+- `export_meal_data`
+- `import_meal_data`
+
+### Sources
+
+- `list_sources`
+- `save_source`
+- `delete_source`
+
+The WebMCP status indicator reports the tools actually discoverable by the browser rather than relying on a hard-coded count.
 
 ## Agent workflow
 
-Meal-planning request:
+Example objective:
 
-> Plan four dinners from my saved recipes, use what is already in my pantry, avoid repeating last week, then build my shopping list.
+> Plan four cheap dinners for this week, use what I already have, avoid repeating last week, add the recipes I am missing, save the useful sources you relied on, then build my shopping list.
 
-Expected tool sequence:
+A capable agent can:
 
-1. `meal_context` reads the current recipes, pantry, current plan and relevant history.
-2. `list_recipes` or `get_recipe` retrieves additional recipe detail when required.
-3. The agent presents or selects a plan.
-4. `plan_meals` writes the approved meal slots.
-5. `build_shopping_list` returns scaled requirements after pantry subtraction.
-6. The same changes are immediately visible in the human interface.
+1. Read the existing meal context.
+2. Inspect recipes and pantry inventory.
+3. Research or select appropriate meals.
+4. Save new recipes when needed.
+5. Store useful videos/articles as sources.
+6. Write the approved weekly plan.
+7. Calculate the shopping list.
+8. Optionally research local package prices and promotions.
 
-Optional shopping-price request:
+Every mutation is immediately visible in the same interface the human uses.
 
-> Price my current shopping list using my saved location and preferred stores. Find current prices and relevant promotions, save the quotes, then give me the estimated basket total.
+## Architecture
 
-Expected tool sequence:
+```text
+Human ───────────────┐
+                     ▼
+                 Web interface
+                     │
+AI agent ─ WebMCP ───┤
+                     ▼
+                 localStorage
+                     │
+       deterministic calculations
+```
 
-1. `shopping_price_context` reads the user's explicit location/store preferences and current ingredient requirements.
-2. The agent determines the correct local ISO 4217 currency from that saved location and writes it with `set_shopping_currency`.
-3. The agent researches current prices or promotions using whatever external sources are available to it in that market.
-4. `save_price_quotes` writes structured package prices and promotion metadata back to the page.
-5. `priced_shopping_list` calculates whole-package purchase costs and the basket total in the resolved local currency.
-6. The Shopping view shows quantities, per-item estimates, retailer/deal information and estimate coverage.
-
-When the user changes the saved shopping location, the currency is marked unresolved until the agent resolves it again. The application does not use device geolocation and does not assume a country from the browser.
-
-This division is intentional:
-
-- The user supplies preferences and explicitly chooses whether to store a shopping location.
-- The agent handles selection, market/currency resolution, research and multi-step orchestration.
-- The website owns persistence, validation, state mutation, quantity calculations and package-aware cost calculations.
-- No third-party grocery API key is embedded in the static frontend.
-
-## Interface
-
-The interface provides four views:
-
-- Weekly plan
-- Recipes
-- Pantry
-- Shopping
-
-Recipes have separate read-only viewing and editing flows.
-
-The Shopping view keeps the calculated quantity visible and adds an optional estimated purchase cost. A user can save a city/region and preferred retailers manually. Relevant saved promotions for current shopping-list ingredients are shown without creating a general advertising feed.
-
-The header reports the actual number of WebMCP tools currently discoverable through `document.modelContext.getTools()`. Agent Prompt copies the meal-planning example request. Import and Export provide a portable round-trip for core meal data. The Shopping view includes a Price with agent action that copies a pricing-specific agent request.
-
-The interface remains usable without WebMCP. Agent tools require ChatGPT's in-app browser or a WebMCP-enabled Chrome build.
-
-## Price data
-
-Price data is deliberately provider-agnostic. The page does not contain retailer credentials or a hard-coded grocery data provider. Price quotes are structured records written by the user or an agent and include location and freshness metadata where available.
-
-This keeps the deployed application static while allowing an agent to use current regional data sources when available. Expired promotion quotes are ignored automatically, and quotes from a different explicitly saved location are not used in the active estimate.
+The application remains useful when WebMCP is unavailable. WebMCP adds machine-operable access to the same state and functions rather than creating a second backend implementation.
 
 ## Run locally
 
-No package installation or build step is required.
+No build step is required.
 
-~~~bash
+```bash
 python -m http.server 8080
-~~~
+```
 
-Open http://localhost:8080/.
+Open `http://localhost:8080/`.
 
 ## Deployment
 
 The project is a static site. Serve the repository root over HTTPS.
 
-Render configuration is included in render.yaml. Netlify configuration is included in netlify.toml.
+Deployment configuration is included for Render and Netlify.
 
-## Repository structure
+## Main files
 
 | File | Purpose |
 | --- | --- |
-| index.html | Application markup and controls |
-| styles.css | Responsive interface styles |
-| app.js | Core state model, calculations, UI logic and WebMCP tools |
-| webmcp-status.js | Counts discoverable WebMCP tools through the browser API and keeps the status badge accurate |
-| import-data.js | Validated JSON import UI and `import_meal_data` WebMCP tool |
-| recipe-view.js | Read-only recipe-view behavior and localization-helper loader |
-| recipe-view.css | Read-only recipe-view styling |
-| shopping-pricing.js | Optional location profile, price quotes, package-aware basket estimates, promotions and pricing WebMCP tools |
-| shopping-localization.js | Agent-resolved local currency behavior and WebMCP currency tool |
-| favicon.svg | Site icon |
-| thumbnail.svg | Devpost/project thumbnail based on the site icon |
-| render.yaml | Render static-site configuration |
-| netlify.toml | Netlify static-site configuration |
+| `index.html` | Application markup and navigation |
+| `styles.css` | Main interface styling |
+| `app.js` | Meal state, calculations, UI and core WebMCP tools |
+| `sources.js` | Local source library, video embedding and source WebMCP tools |
+| `sources.css` | Sources interface styling |
+| `shopping-pricing.js` | Price quotes and package-aware basket estimates |
+| `shopping-localization.js` | Agent-resolved shopping currency |
+| `import-data.js` | Validated state import |
+| `recipe-view.js` | Read-only recipe view |
+| `webmcp-status.js` | Live WebMCP tool discovery status |
 
 ## License
 
