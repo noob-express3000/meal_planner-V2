@@ -1,5 +1,6 @@
 (() => {
   const PRICING_KEY = "meal-planner.shopping-pricing.v1";
+  const UNKNOWN_CURRENCY = "XXX";
 
   const clean = (value) => String(value ?? "").trim();
   const key = (value) => clean(value).toLocaleLowerCase().replace(/\s+/g, " ");
@@ -9,7 +10,7 @@
     return {
       location: "",
       preferredStores: [],
-      currency: "ZAR",
+      currency: UNKNOWN_CURRENCY,
       quotes: [],
       updatedAt: null
     };
@@ -123,7 +124,10 @@
   }
 
   function formatCurrency(value) {
-    const currency = clean(pricing.currency) || "ZAR";
+    const currency = clean(pricing.currency).toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency) || currency === UNKNOWN_CURRENCY) {
+      return roundMoney(value).toFixed(2);
+    }
     try {
       return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
     } catch {
@@ -171,10 +175,10 @@
     };
   }
 
-  function setShoppingProfile({ location = "", preferred_stores = [], currency = "ZAR" } = {}) {
+  function setShoppingProfile({ location = "", preferred_stores = [], currency = UNKNOWN_CURRENCY } = {}) {
     pricing.location = clean(location);
     pricing.preferredStores = [...new Set((preferred_stores || []).map(clean).filter(Boolean))];
-    pricing.currency = clean(currency).toUpperCase() || "ZAR";
+    pricing.currency = clean(currency).toUpperCase() || UNKNOWN_CURRENCY;
     persistPricing();
     return { location: pricing.location, preferredStores: [...pricing.preferredStores], currency: pricing.currency };
   }
@@ -333,10 +337,10 @@
     if (!result.itemCount) {
       summary.innerHTML = `<div><strong>No purchases</strong><small>Your planned meals do not require anything beyond the pantry.</small></div>`;
     } else if (!result.pricedCount) {
-      summary.innerHTML = `<div><strong>Estimated total —</strong><small>${pricing.location ? `No saved prices for ${escapeHtml(pricing.location)} yet.` : "Set a location, then ask your agent to price the list."}</small></div>`;
+      summary.innerHTML = `<div><strong>Estimated total —</strong><small>${pricing.location ? "No saved prices yet." : "Set a location, then ask your agent to price the list."}</small></div>`;
     } else {
       const coverage = result.complete ? `${result.itemCount} items priced` : `${result.pricedCount} of ${result.itemCount} items priced`;
-      summary.innerHTML = `<div><strong>${result.complete ? "Estimated total" : "Partial estimate"}</strong><small>${escapeHtml(coverage)}${pricing.location ? ` · ${escapeHtml(pricing.location)}` : ""}</small></div><strong>${escapeHtml(formatCurrency(result.total))}</strong>`;
+      summary.innerHTML = `<div><strong>${result.complete ? "Estimated total" : "Partial estimate"}</strong><small>${escapeHtml(coverage)}</small></div><strong>${escapeHtml(formatCurrency(result.total))}</strong>`;
     }
 
     const deals = document.querySelector("#shoppingDeals");
@@ -382,7 +386,7 @@
         inputSchema: object({
           location: string("User-provided city, suburb, region or country; empty string clears it"),
           preferred_stores: { type: "array", items: { type: "string" }, description: "Optional retailer names the user prefers" },
-          currency: string("ISO 4217 currency code such as ZAR, USD or GBP")
+          currency: string("Three-letter ISO 4217 currency code")
         }, ["location", "preferred_stores", "currency"]),
         execute: (input) => toolText(setShoppingProfile(input), "Shopping profile saved.")
       },
