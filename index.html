@@ -3,28 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Plan meals, save recipes, keep sources and build shopping lists with WebMCP." />
+  <meta name="description" content="Local-first meal planning shared by humans and WebMCP agents." />
   <meta name="theme-color" content="#09090b" />
   <title>Meal Planner</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./recipe-view.css" />
   <link rel="stylesheet" href="./sources.css" />
+  <link rel="stylesheet" href="./shell.css" />
 </head>
 <body>
   <div class="app-layout">
-    <header class="sidebar">
-      <a class="brand" href="#planner" aria-label="Meal Planner home">
-        <span>Meal Planner</span>
-      </a>
+    <aside class="sidebar">
+      <a class="brand" href="#planner" aria-label="Meal Planner home">Meal Planner</a>
 
       <nav class="tabs" aria-label="Meal planner sections">
-        <button class="tab active" data-tab="planner" type="button"><span>Weekly plan</span></button>
+        <button class="tab active" data-tab="planner" type="button"><span>Plan</span></button>
         <button class="tab" data-tab="recipes" type="button"><span>Recipes</span></button>
         <button class="tab" data-tab="pantry" type="button"><span>Pantry</span></button>
         <button class="tab" data-tab="shopping" type="button"><span>Shopping</span></button>
         <button class="tab" data-tab="sources" type="button"><span>Sources</span></button>
+        <button class="tab" data-tab="preferences" type="button"><span>Profile</span></button>
       </nav>
+
       <div class="topbar-actions">
         <span id="mcpStatus" class="mcp-pill" title="WebMCP connection status"><span>Checking WebMCP…</span></span>
         <button class="button ghost agent-prompt" type="button" data-copy-agent-prompt aria-label="Copy agent prompt">
@@ -36,7 +37,7 @@
           <span>Export</span>
         </button>
       </div>
-    </header>
+    </aside>
 
     <section class="workspace">
       <main>
@@ -54,14 +55,14 @@
 
         <section id="recipes" class="panel" data-panel="recipes">
           <div class="section-head">
-            <div><h2>Your recipes</h2></div>
+            <div><h2>Recipes</h2></div>
             <button id="addRecipeButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add recipe</button>
           </div>
           <div id="recipeList" class="recipe-grid"></div>
         </section>
 
         <section id="pantry" class="panel" data-panel="pantry">
-          <div class="section-head"><div><h2>Your pantry</h2></div></div>
+          <div class="section-head"><div><h2>Pantry</h2></div></div>
           <form id="pantryForm" class="inline-form">
             <label class="sr-only" for="pantryName">Ingredient</label>
             <input id="pantryName" name="name" placeholder="Ingredient" required />
@@ -76,7 +77,7 @@
 
         <section id="shopping" class="panel" data-panel="shopping">
           <div class="section-head">
-            <div><h2>Shopping list</h2></div>
+            <div><h2>Shopping</h2></div>
             <button id="copyShoppingButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M8 8h11v12H8zM5 16H4V4h11v1"/></svg>Copy list</button>
           </div>
           <div id="shoppingList" class="simple-list"></div>
@@ -88,6 +89,63 @@
             <button id="addSourceButton" class="button primary" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add source</button>
           </div>
           <div id="sourceList" class="source-grid"></div>
+        </section>
+
+        <section id="preferences" class="panel" data-panel="preferences">
+          <div class="section-head"><div><h2>Planning profile</h2></div></div>
+          <form id="preferencesForm" class="preferences-form">
+            <div class="preference-grid">
+              <label class="preference-field compact">
+                <span>Household</span>
+                <input id="prefHousehold" type="number" min="1" step="1" placeholder="2" />
+              </label>
+
+              <label class="preference-field compact">
+                <span>Max cook time</span>
+                <input id="prefMaxCook" type="number" min="0" step="1" placeholder="30" />
+              </label>
+
+              <label class="preference-field">
+                <span>Weekly budget</span>
+                <div class="budget-fields">
+                  <input id="prefBudget" type="number" min="0" step="any" placeholder="800" />
+                  <input id="prefCurrency" maxlength="3" inputmode="text" placeholder="ZAR" aria-label="Budget currency" />
+                </div>
+              </label>
+
+              <label class="preference-field">
+                <span>Dietary restrictions</span>
+                <textarea id="prefRestrictions" rows="3" placeholder="vegetarian, halal, gluten-free"></textarea>
+              </label>
+
+              <label class="preference-field">
+                <span>Allergies</span>
+                <textarea id="prefAllergies" rows="3" placeholder="peanuts, shellfish"></textarea>
+              </label>
+
+              <label class="preference-field">
+                <span>Dislikes</span>
+                <textarea id="prefDislikes" rows="3" placeholder="mushrooms, olives"></textarea>
+              </label>
+
+              <label class="preference-field">
+                <span>Equipment</span>
+                <textarea id="prefEquipment" rows="3" placeholder="stove, microwave, air fryer"></textarea>
+              </label>
+
+              <label class="preference-field wide">
+                <span>Goals</span>
+                <textarea id="prefGoals" rows="3" placeholder="high-protein, low cost, meal prep"></textarea>
+              </label>
+            </div>
+
+            <div class="profile-actions">
+              <button id="clearPreferences" class="button ghost" type="button">Clear</button>
+              <button class="button primary" type="submit">Save profile</button>
+            </div>
+          </form>
+
+          <div id="preferenceSummary" class="preference-summary" aria-live="polite"></div>
         </section>
       </main>
     </section>
@@ -163,5 +221,6 @@
   <script src="./shopping-pricing.js" defer></script>
   <script src="./import-data.js" defer></script>
   <script src="./sources.js" defer></script>
+  <script src="./preferences.js" defer></script>
 </body>
 </html>
