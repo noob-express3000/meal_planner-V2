@@ -1,3 +1,0 @@
--r requirements.txt
-strands-agents>=1.0,<2.0
-httpx==0.28.1
