@@ -14,15 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check app.js
+        run: |
+          node --check app.js
+          node --check sources.js
       - name: Verify WebMCP integration and submission files
         shell: bash
         run: |
           test -f index.html
           test -f styles.css
           test -f app.js
+          test -f sources.js
+          test -f sources.css
           test -f README.md
           test -f LICENSE
           grep -q 'document.modelContext.registerTool' app.js
           grep -q 'meal_context' app.js
           grep -q 'build_shopping_list' app.js
+          grep -q 'save_source' sources.js
+          grep -q 'list_sources' sources.js
