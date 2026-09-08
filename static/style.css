@@ -65,15 +65,47 @@ button { cursor: pointer; }
 }
 
 .agent-status {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #303030;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #454542;
   flex: 0 0 auto;
+  transition: color 140ms ease;
+}
+
+.webmcp-icon {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+
+.webmcp-icon circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.webmcp-icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .agent-status.connected {
-  background: var(--text);
+  color: var(--text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .tabs {
