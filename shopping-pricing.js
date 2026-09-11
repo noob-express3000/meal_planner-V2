@@ -378,7 +378,7 @@
       const planned = getMealPlan(currentWeekRange()).length > 0;
       summary.innerHTML = `<div><strong>${planned ? "No purchases" : "No meals planned"}</strong><small>${planned ? "Your planned meals do not require anything beyond the pantry." : "Add meals to the selected week to build a shopping list."}</small></div>`;
     } else if (!result.pricedCount) {
-      summary.innerHTML = `<div><strong>Estimated total —</strong><small>${pricing.location ? "No saved prices yet." : "Set a location, then ask your agent to price the list."}</small></div>`;
+      summary.innerHTML = `<div><strong>Estimated total —</strong><small>No saved prices yet. Ask your agent to price the list.</small></div>`;
     } else {
       const coverage = result.complete ? `${result.itemCount} items priced` : `${result.pricedCount} of ${result.itemCount} items priced`;
       summary.innerHTML = `<div><strong>${result.complete ? "Estimated total" : "Partial estimate"}</strong><small>${escapeHtml(coverage)}</small></div><strong>${escapeHtml(formatCurrency(result.total))}</strong>`;
